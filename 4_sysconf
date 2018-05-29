@@ -1,0 +1,11 @@
+#!/bin/bash
+. conf
+
+echo $host > $dir/etc/hostname
+sed -i -e "1a 127.0.1.1       $host.$domain $host" $dir/etc/hosts
+cat $dir/etc/hosts
+
+cat >> $dir/etc/network/interfaces <<!
+auto $network
+iface $network inet dhcp
+!

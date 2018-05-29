@@ -1,0 +1,8 @@
+#!/bin/bash
+. conf
+
+apt install debootstrap
+chmod 1777 $dir/var/tmp
+debootstrap $version $dir
+zfs set devices=off rpool
+ 

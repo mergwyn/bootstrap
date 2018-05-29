@@ -1,0 +1,6 @@
+#!/bin/bash
+. $(dirname $0)/conf
+
+[[ "${boot}" = "efi" ]] && exit 0
+apt install --yes grub-pc
+

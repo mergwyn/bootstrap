@@ -1,0 +1,74 @@
+#!/bin/bash
+. conf
+
+features="
+      -d -o feature@async_destroy=enabled 
+         -o feature@empty_bpobj=enabled 
+         -o feature@filesystem_limits=enabled 
+         -o feature@lz4_compress=enabled 
+         -o feature@spacemap_histogram=enabled 
+         -o feature@extensible_dataset=enabled 
+         -o feature@bookmarks=enabled 
+         -o feature@enabled_txg=enabled 
+         -o feature@embedded_data=enabled 
+         -o feature@large_blocks=enabled 
+"
+#features=
+for disk in ${disks}
+do
+      members+="${disk}${part} "
+done
+
+mod_partition()
+{
+	for disk in $disks
+	do
+		sgdisk -t9:EF00 $disk
+	done
+}
+create_partition()
+{
+	for disk in $disks
+	do
+		echo -n "about to zap all partitions on ${disk} - are you sure? [Y/N]"
+		read answer
+		[[ "${answer}" != "Y" ]] && exit
+		sgdisk --zap-all ${disk}
+		if [[ "${boot}" = "efi" ]]
+		then
+			#Run this for UEFI booting (for use now or in the future):
+			sgdisk -n9:1M:+512M     -t9:EF00 $disk
+		else
+			#Run this if you need legacy (BIOS) booting:
+			#sgdisk -g -a1 -n2:34:2047  -t2:EF02 $disk
+			sgdisk -a1 -n2:34:2047  -t2:EF02 $disk
+
+		fi
+
+		#Run these in all cases:
+		sgdisk     -n1:0:0      -t1:BF01 $disk
+
+	done
+}
+create_pool()
+{
+	zpool create -f -o ashift=12 \
+		-O atime=off \
+		-O canmount=off\
+		-O compression=lz4\
+		-O normalization=formD \
+		-O mountpoint=/\
+		-R /mnt ${features} \
+		rpool $pooltype ${members}
+}
+
+apt update
+apt install zfsutils-linux
+case ${wholedisk} in
+#true)	create_pool
+#	mod_partition;;
+*)	create_partition
+	sleep 5
+	create_pool;;
+esac
+

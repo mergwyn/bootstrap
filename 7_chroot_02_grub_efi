@@ -1,0 +1,34 @@
+#!/bin/bash
+. $(dirname $0)/conf
+
+[[ "${boot}" = "efi" ]] || exit 0
+
+apt-get install --yes  dosfstools
+apt install --yes grub-efi 
+[[ -d /boot/efi ]] || mkdir /boot/efi
+for disk in ${disks}
+do
+	mkdosfs ${mkdosfsargs} ${disk}-part9
+	echo PARTUUID=$(blkid -s PARTUUID -o value \
+	      ${disk}-part9) \
+	      /boot/efi vfat nofail,x-systemd.device-timeout=1 0 1 >> /etc/fstab
+done
+
+
+
+for disk in ${disks}
+do
+	mount  ${disk}-part9 /boot/efi
+	grub-install --target=x86_64-efi --efi-directory=/boot/efi \
+	      --bootloader-id=ubuntu --recheck --no-floppy
+	#for MBR
+	grub-install ${disk}
+	umount /boot/efi
+done
+
+sed -i -e '/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/aGRUB_CMDLINE_LINUX_DEFAULT=""' -e 's/^GRUB_TIMEOUT/#&/' /etc/default/grub
+
+grub-probe /
+update-initramfs -c -k all
+update-grub
+

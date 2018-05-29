@@ -1,0 +1,7 @@
+#!/bin/bash
+. conf
+for d in /dev /dev/pts /proc /sys /run; do
+    mount --rbind $d ${dir}$d
+done
+rm $dir/etc/resolv.conf
+cp /etc/resolv.conf $dir/etc/resolv.conf

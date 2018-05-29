@@ -1,0 +1,43 @@
+#!/bin/bash -x
+. $(dirname $0)/conf
+
+modprobe zfs
+cat > /etc/apt/sources.list <<!
+deb http://archive.ubuntu.com/ubuntu $version main universe
+deb-src http://archive.ubuntu.com/ubuntu $version main universe
+
+deb http://security.ubuntu.com/ubuntu $version-security main universe
+deb-src http://security.ubuntu.com/ubuntu $version-security main universe
+
+deb http://archive.ubuntu.com/ubuntu $version-updates main universe
+deb-src http://archive.ubuntu.com/ubuntu $version-updates main universe
+!
+
+rm /etc/mtab || true
+ln -s /proc/self/mounts /etc/mtab
+apt update
+
+
+locale-gen en_GB.UTF-8
+echo 'LANG="en_GB.UTF-8"' > /etc/default/locale
+
+dpkg-reconfigure tzdata
+
+#apt upgrade
+apt install --yes ubuntu-minimal
+apt install --yes --no-install-recommends linux-image-generic
+apt install --yes zfs-initramfs
+
+addgroup --system lpadmin
+addgroup --system sambashare
+
+passwd
+
+
+zfs set mountpoint=legacy rpool/var/log
+zfs set mountpoint=legacy rpool/var/tmp
+cat >> /etc/fstab << EOF
+rpool/var/log /var/log zfs defaults 0 0
+rpool/var/tmp /var/tmp zfs defaults 0 0
+EOF
+cat /etc/fstab
