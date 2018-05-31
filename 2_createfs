@@ -12,10 +12,12 @@ zfs create -o canmount=off -o setuid=off  -o exec=off 	rpool/ROOT/$root/var
 zfs create -o com.sun:auto-snapshot=false             	rpool/ROOT/$root/var/cache
 zfs create                                            	rpool/ROOT/$root/var/spool
 #zfs create                                            	rpool/ROOT/$root/var/log
-zfs create -o mountpoint==/var/log                      rpool/log
+zfs create -o mountpoint=/var/log                      	rpool/log
 #zfs create -o com.sun:auto-snapshot=false -o exec=on  	rpool/ROOT/$root/var/tmp
-zfs create -o com.sun:auto-snapshot=false -o exec=on 
-	   -o mountpoint=/var/tmp		  	rpool/tmp
+zfs create -o com.sun:auto-snapshot=false -o exec=on \
+	   -o mountpoint=/var/tmp		  	rpool/vtmp
+zfs create -o com.sun:auto-snapshot=false -o exec=on \
+	   -o mountpoint=/tmp		  		rpool/tmp
 zfs create -o com.sun:auto-snapshot=false \
            -o mountpoint=/var/lib/nfs                 	rpool/ROOT/$root/var/nfs
 
