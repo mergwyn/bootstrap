@@ -1,7 +1,6 @@
 #!/bin/bash -x
 . $(dirname $0)/conf
 
-modprobe zfs
 cat > /etc/apt/sources.list <<!
 deb http://archive.ubuntu.com/ubuntu $version main universe
 deb-src http://archive.ubuntu.com/ubuntu $version main universe
@@ -27,6 +26,7 @@ dpkg-reconfigure tzdata
 apt install --yes ubuntu-minimal
 apt install --yes --no-install-recommends linux-image-generic
 apt install --yes zfs-initramfs
+modprobe zfs
 
 addgroup --system lpadmin
 addgroup --system sambashare
@@ -34,10 +34,10 @@ addgroup --system sambashare
 passwd
 
 
-zfs set mountpoint=legacy rpool/var/log
-zfs set mountpoint=legacy rpool/var/tmp
+zfs set mountpoint=legacy rpool/log
+zfs set mountpoint=legacy rpool/vtmp
 cat >> /etc/fstab << EOF
-rpool/var/log /var/log zfs defaults 0 0
-rpool/var/tmp /var/tmp zfs defaults 0 0
+rpool/log  /var/log zfs defaults 0 0
+rpool/vtmp /var/tmp zfs defaults 0 0
 EOF
 cat /etc/fstab
