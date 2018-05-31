@@ -1,15 +1,19 @@
 #/bin/bash
 set -x -e
-host=foxtrot
-root=${host}-2
+host=golf
+root=${host}-1
 dir=/mnt
 domain=theclarkhome.com
-version=bionic
+version=xenial
 network=enp3s0
-disks="
-/dev/disk/by-id/ata-SanDisk_SDSSDA120G_154715407711
-/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722461404 
-"
+boot=efi
+#foxtrot:
+#disks="
+#/dev/disk/by-id/ata-SanDisk_SDSSDA120G_154715407711
+#/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722461404 
+#"
+#golf
+disks="/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722459408"
 
 declare -i count=0
 for disk in ${disks}
@@ -20,14 +24,14 @@ done
 echo $count
 case ${count} in
 1)	pooltype=;;
-2)	pooltype=mirror
-	boot=efi;;
+2)	pooltype=mirror;;
 *)	echo "need to set pooltype" >&2; exit 1;;
 esac
 
 case ${boot} in
 efi)	bootpart=-part9
-	mkdosfsargs="-F 32 -n EFI";;
+	wholedisk=true
+	mkdosfsargs="-n EFI";;
 *)	echo "need to set boot type" >&2; exit 1;;
 esac
 
