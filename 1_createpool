@@ -19,6 +19,17 @@ do
       members+="${disk}${part} "
 done
 
+zap_partition() 
+{
+	echo -n "about to zap all partitions on ${disks} - are you sure? [Y/N]"
+	read answer
+	[[ "${answer}" != "Y" ]] && exit
+	for disk in $disks
+	do
+		sgdisk --zap-all ${disk}
+	done
+}
+
 mod_partition()
 {
 	for disk in $disks
@@ -30,10 +41,6 @@ create_partition()
 {
 	for disk in $disks
 	do
-		echo -n "about to zap all partitions on ${disk} - are you sure? [Y/N]"
-		read answer
-		[[ "${answer}" != "Y" ]] && exit
-		sgdisk --zap-all ${disk}
 		if [[ "${boot}" = "efi" ]]
 		then
 			#Run this for UEFI booting (for use now or in the future):
@@ -64,10 +71,11 @@ create_pool()
 
 apt update
 apt install zfsutils-linux
+zap_partition
 case ${wholedisk} in
-#true)	create_pool
-#	mod_partition;;
-*)	create_partition
+true)	create_pool
+	mod_partition;;
+*)	zap_partition
 	sleep 5
 	create_pool;;
 esac
