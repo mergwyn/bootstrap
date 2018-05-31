@@ -5,3 +5,5 @@ for d in /dev /dev/pts /proc /sys /run; do
 done
 rm $dir/etc/resolv.conf
 cp /etc/resolv.conf $dir/etc/resolv.conf
+echo $root > $dir/etc/debian_chroot
+
