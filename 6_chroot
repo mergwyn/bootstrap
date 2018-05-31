@@ -2,7 +2,6 @@
 . conf
 cp conf 7_chroot_* $dir/root
 
-
 for i in 7_chroot_*
 do
 	echo $i:
