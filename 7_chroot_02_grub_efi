@@ -21,8 +21,7 @@ do
 	mount  ${disk}-part9 /boot/efi
 	grub-install --target=x86_64-efi --efi-directory=/boot/efi \
 	      --bootloader-id=ubuntu --recheck --no-floppy
-	#for MBR
-	grub-install ${disk}
+	grub-install --target=x86_64-efi ${disk}
 	umount /boot/efi
 done
 
