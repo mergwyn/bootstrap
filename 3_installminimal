@@ -1,5 +1,5 @@
 #!/bin/bash
-. conf
+. $(dirname $0)/conf
 
 apt install debootstrap
 chmod 1777 $dir/var/tmp

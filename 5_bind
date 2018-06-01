@@ -1,5 +1,5 @@
 #!/bin/bash
-. conf
+. $(dirname $0)/conf
 for d in /dev /dev/pts /proc /sys /run; do
     mount --rbind $d ${dir}$d
 done

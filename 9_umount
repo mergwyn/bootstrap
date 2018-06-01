@@ -1,5 +1,5 @@
 #!/bin/bash
-. conf
+. $(dirname $0)/conf
 
 rm $dir/etc/debian_chroot
 

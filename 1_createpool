@@ -1,5 +1,5 @@
 #!/bin/bash
-. conf
+. $(dirname $0)/conf
 
 features="
       -d -o feature@async_destroy=enabled 

@@ -1,5 +1,5 @@
 #!/bin/bash -x
-. conf
+. $(dirname $0)/conf
 cp conf 7_chroot_* $dir/root
 
 for i in 7_chroot_*

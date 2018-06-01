@@ -1,5 +1,5 @@
 #!/bin/bash
-. conf
+. $(dirname $0)/conf
 
 echo $host > $dir/etc/hostname
 sed -i -e "1a 127.0.1.1       $host.$domain $host" $dir/etc/hosts
