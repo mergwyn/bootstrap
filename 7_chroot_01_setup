@@ -34,10 +34,10 @@ addgroup --system sambashare
 passwd
 
 
-zfs set mountpoint=legacy rpool/log
-zfs set mountpoint=legacy rpool/vtmp
+zfs set mountpoint=legacy ${pool}/log
+zfs set mountpoint=legacy ${pool}/vtmp
 cat >> /etc/fstab << EOF
-rpool/log  /var/log zfs defaults 0 0
-rpool/vtmp /var/tmp zfs defaults 0 0
+${pool}/log  /var/log zfs defaults 0 0
+${pool}/vtmp /var/tmp zfs defaults 0 0
 EOF
 cat /etc/fstab

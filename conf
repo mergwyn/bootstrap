@@ -2,18 +2,26 @@
 set -x -e
 host=golf
 root=${host}-1
+pool=rpool
 dir=/mnt
 domain=theclarkhome.com
 version=xenial
 network=enp3s0
-boot=efi
-#foxtrot:
-#disks="
-#/dev/disk/by-id/ata-SanDisk_SDSSDA120G_154715407711
-#/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722461404 
-#"
-#golf
-disks="/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722459408"
+case ${host} in
+foxtrot)
+	boot=efi
+	disks="
+	/dev/disk/by-id/ata-SanDisk_SDSSDA120G_154715407711
+	/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722461404 
+	"
+	;;
+golf)
+	disks="/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722459408"
+	wholedisk=true
+	boot=efi
+	;;
+esac
+ls -l ${disks}
 
 declare -i count=0
 for disk in ${disks}
@@ -30,7 +38,6 @@ esac
 
 case ${boot} in
 efi)	bootpart=-part9
-	wholedisk=true
 	mkdosfsargs="-n EFI";;
 *)	echo "need to set boot type" >&2; exit 1;;
 esac
@@ -39,6 +46,7 @@ case ${wholedisk} in
 true)	part=
 	;;
 *)	part=-part1
+	mkdosfsargs="-F32 -n EFI";;
 	;;
 esac
 

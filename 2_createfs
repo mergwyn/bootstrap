@@ -1,25 +1,25 @@
 #!/bin/bash
 . $(dirname $0)/conf
 
-zfs create -o canmount=off -o mountpoint=none		rpool/ROOT
-zfs create -o canmount=noauto -o mountpoint=/ 	 	rpool/ROOT/$root
-zfs mount rpool/ROOT/$root
-#zfs create                 -o setuid=off              	rpool/home
-zfs create -o mountpoint=/root                        	rpool/root
-zfs create -o canmount=off				rpool/boot
-zfs create 						rpool/boot/grub
-zfs create -o canmount=off -o setuid=off  -o exec=off 	rpool/ROOT/$root/var
-zfs create -o com.sun:auto-snapshot=false             	rpool/ROOT/$root/var/cache
-zfs create                                            	rpool/ROOT/$root/var/spool
-#zfs create                                            	rpool/ROOT/$root/var/log
-zfs create -o mountpoint=/var/log                      	rpool/log
-#zfs create -o com.sun:auto-snapshot=false -o exec=on  	rpool/ROOT/$root/var/tmp
+zfs create -o canmount=off -o mountpoint=none		${pool}/ROOT
+zfs create -o canmount=noauto -o mountpoint=/ 	 	${pool}/ROOT/$root
+zfs mount ${pool}/ROOT/$root
+#zfs create                 -o setuid=off              	${pool}/home
+zfs create -o mountpoint=/root                        	${pool}/root
+zfs create -o canmount=off				${pool}/boot
+zfs create 						${pool}/boot/grub
+zfs create -o canmount=off -o setuid=off  -o exec=off 	${pool}/ROOT/$root/var
+zfs create -o com.sun:auto-snapshot=false             	${pool}/ROOT/$root/var/cache
+zfs create                                            	${pool}/ROOT/$root/var/spool
+#zfs create                                            	${pool}/ROOT/$root/var/log
+zfs create -o mountpoint=/var/log                      	${pool}/log
+#zfs create -o com.sun:auto-snapshot=false -o exec=on  	${pool}/ROOT/$root/var/tmp
 zfs create -o com.sun:auto-snapshot=false -o exec=on \
-	   -o mountpoint=/var/tmp		  	rpool/vtmp
+	   -o mountpoint=/var/tmp		  	${pool}/vtmp
 zfs create -o com.sun:auto-snapshot=false -o exec=on \
-	   -o mountpoint=/tmp		  		rpool/tmp
+	   -o mountpoint=/tmp		  		${pool}/tmp
 zfs create -o com.sun:auto-snapshot=false \
-           -o mountpoint=/var/lib/nfs                 	rpool/ROOT/$root/var/nfs
+           -o mountpoint=/var/lib/nfs                 	${pool}/ROOT/$root/var/nfs
 
 
-zpool set bootfs=rpool/ROOT/$root rpool
+zpool set bootfs=${pool}/ROOT/$root rpool

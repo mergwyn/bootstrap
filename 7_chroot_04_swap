@@ -3,4 +3,4 @@
 zfs create -V 16G -b $(getconf PAGESIZE) -o compression=zle \
       -o logbias=throughput -o sync=always \
       -o primarycache=metadata -o secondarycache=none \
-      -o com.sun:auto-snapshot=false rpool/swap
+      -o com.sun:auto-snapshot=false ${pool}/swap
