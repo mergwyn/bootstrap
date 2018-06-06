@@ -1,6 +1,14 @@
 #!/bin/bash
 . $(dirname $0)/conf
-zfs create -V 16G -b $(getconf PAGESIZE) -o compression=zle \
+SIZE=$(dmidecode -t 17 | awk '/Size\:/ { print $2 }')M
+zfs create -V ${SIZE} -b $(getconf PAGESIZE) -o compression=zle \
       -o logbias=throughput -o sync=always \
       -o primarycache=metadata -o secondarycache=none \
-      -o com.sun:auto-snapshot=false rpool/swap
+      -o com.sun:auto-snapshot=false ${pool}/swap
+
+mkswap /dev/zvol/${pool}/swap 
+
+cat >> /etc/fstab <<!
+/dev/zvol/${pool}/swap	none			swap	defaults		0	0
+!
+swapon -a
