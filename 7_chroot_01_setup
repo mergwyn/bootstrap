@@ -16,6 +16,17 @@ rm /etc/mtab || true
 ln -s /proc/self/mounts /etc/mtab
 apt update
 
+cat > /etc/fstab <<!
+# /etc/fstab: static file system information.
+#
+# Use 'blkid' to print the universally unique identifier for a
+# device; this may be used with UUID= as a more robust way to name devices
+# that works even if disks are added and removed. See fstab(5).
+#
+# <file system>		<mount point>		<type>	<options>			<dump>	<pass>
+proc			/proc			proc	nodev,noexec,nosuid		0	0
+tmpfs			/run			tmpfs	noatime,nodev,nosuid,mode=1777	0	0
+!
 
 locale-gen en_GB.UTF-8
 echo 'LANG="en_GB.UTF-8"' > /etc/default/locale
@@ -25,7 +36,7 @@ dpkg-reconfigure tzdata
 #apt upgrade
 apt install --yes ubuntu-minimal
 apt install --yes --no-install-recommends linux-image-generic
-apt install --yes zfsutils-linux zfs-initramfs
+apt install --yes zfsutils-linux zfs-initramfs openssh-server
 modprobe zfs || true
 
 addgroup --system lpadmin
@@ -34,10 +45,10 @@ addgroup --system sambashare
 passwd
 
 
-zfs set mountpoint=legacy rpool/log
-zfs set mountpoint=legacy rpool/vtmp
+zfs set mountpoint=legacy ${pool}/var/log
+zfs set mountpoint=legacy ${pool}/var/tmp
 cat >> /etc/fstab << EOF
-rpool/log  /var/log zfs defaults 0 0
-rpool/vtmp /var/tmp zfs defaults 0 0
+${pool}/var/log  		/var/log 		zfs 	defaults 		0	0
+${pool}/var/tmp  		/var/tmp 		zfs 	defaults 		0	0
 EOF
 cat /etc/fstab
