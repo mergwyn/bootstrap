@@ -1,32 +1,37 @@
 #!/bin/bash
 . $(dirname $0)/conf
 
+#Included in the boot environment
 zfs create -o canmount=off -o mountpoint=none\
 	   -o com.sun:auto-snapshot=false		${pool}/ROOT
 zfs create -o canmount=noauto -o mountpoint=/ \
 	   -o com.sun:auto-snapshot=true		${pool}/ROOT/$root
 zfs mount ${pool}/ROOT/$root
-#zfs create                 -o setuid=off              	${pool}/home
-zfs create -o mountpoint=/root                        	${pool}/root
-zfs create -o canmount=off -o com.sun:auto-snapshot=false ${pool}/boot
-zfs create -o com.sun:auto-snapshot=true 		${pool}/boot/grub
+
 zfs create -o canmount=off -o setuid=off  -o exec=off \
 	   -o com.sun:auto-snapshot=false 		${pool}/ROOT/$root/var
 zfs create -o com.sun:auto-snapshot=false             	${pool}/ROOT/$root/var/cache
 zfs create -o com.sun:auto-snapshot=false               ${pool}/ROOT/$root/var/spool
+#zfs create -o com.sun:auto-snapshot=false              ${pool}/ROOT/$root/var/log
+#zfs create -o com.sun:auto-snapshot=false -o exec=on  	${pool}/ROOT/$root/var/tmp
+
+# Not in the BE
+#zfs create                 -o setuid=off              	${pool}/home
+zfs create -o mountpoint=/root                        	${pool}/root
+zfs create -o mountpoint=none \
+	   -o com.sun:auto-snapshot=false 		${pool}/boot
+zfs create -o com.sun:auto-snapshot=true \
+	   -o -mountpoint=/boot/grub 			${pool}/boot/grub
+#zfs create -o com.sun:auto-snapshot=false -o exec=on \
+#	   -o mountpoint=/tmp		  		${pool}/tmp
 
 zfs create -o com.sun:auto-snapshot=false \
 	   -o mountpoint=none		  		${pool}/var
-#zfs create                                            	${pool}/ROOT/$root/var/log
 zfs create -o mountpoint=/var/log \
 	   -o com.sun:auto-snapshot=false             	${pool}/var/log 
-#zfs create -o com.sun:auto-snapshot=false -o exec=on  	${pool}/ROOT/$root/var/tmp
 zfs create -o com.sun:auto-snapshot=false -o exec=on \
 	   -o mountpoint=/var/tmp		  	${pool}/var/tmp
-#zfs create -o com.sun:auto-snapshot=false -o exec=on \
-#	   -o mountpoint=/tmp		  		${pool}/tmp
 zfs create -o com.sun:auto-snapshot=false \
            -o mountpoint=/var/lib/nfs                 	${pool}/var/nfs
-
 
 zpool set bootfs=${pool}/ROOT/$root ${pool}
