@@ -71,12 +71,17 @@ create_pool()
 
 apt update
 apt install zfsutils-linux
-zap_partition
-case ${wholedisk} in
-true)	create_pool
-	mod_partition;;
-*)	zap_partition
-	sleep 5
-	create_pool;;
+case ${host} in
+test)	create_pool
+	;;
+*)
+	zap_partition
+	case ${wholedisk} in
+	true)	create_pool
+		mod_partition;;
+	*)	zap_partition
+		sleep 5
+		create_pool;;
+	esac
+	;;
 esac
-

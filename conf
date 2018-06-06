@@ -1,12 +1,13 @@
-#/bin/bash
+#!/bin/bash
 set -x -e
-host=golf
+host=${1:-golf}
 root=${host}-1
 pool=rpool
 dir=/mnt
 domain=theclarkhome.com
 version=xenial
 network=enp3s0
+
 case ${host} in
 foxtrot)
 	boot=efi
@@ -19,6 +20,10 @@ golf)
 	disks="/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722459408"
 	wholedisk=true
 	boot=efi
+	;;
+test)
+	pool=testpool
+	disks="/test/1.img"
 	;;
 esac
 ls -l ${disks}
@@ -46,7 +51,6 @@ case ${wholedisk} in
 true)	part=
 	;;
 *)	part=-part1
-	mkdosfsargs="-F32 -n EFI";;
+	mkdosfsargs="-F32 -n EFI"
 	;;
 esac
-
