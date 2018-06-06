@@ -21,7 +21,7 @@ zfs create -o mountpoint=/root                        	${pool}/root
 zfs create -o mountpoint=none \
 	   -o com.sun:auto-snapshot=false 		${pool}/boot
 zfs create -o com.sun:auto-snapshot=true \
-	   -o -mountpoint=/boot/grub 			${pool}/boot/grub
+	   -o mountpoint=/boot/grub 			${pool}/boot/grub
 #zfs create -o com.sun:auto-snapshot=false -o exec=on \
 #	   -o mountpoint=/tmp		  		${pool}/tmp
 
