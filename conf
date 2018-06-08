@@ -1,16 +1,17 @@
 #!/bin/bash
 set -x -e
-host=${1:-golf}
+host=${1}
 root=${host}-1
 pool=rpool
 dir=/mnt
 domain=theclarkhome.com
 version=xenial
 network=enp3s0
+BE=${pool}/ROOT/${root}
 
-if [[ ${host} = $(hostname) ]]
+if [[ ! ${host} ]] 
 then
-	echo "${host} cannot equal $(hostname)" >&2
+	echo "host cannot be empty" >&2
 	exit 1
 fi
 
