@@ -26,11 +26,9 @@ zfs create -o com.sun:auto-snapshot=true \
 #	   -o mountpoint=/tmp		  		${pool}/tmp
 
 zfs create -o com.sun:auto-snapshot=false \
-	   -o mountpoint=none		  		${pool}/var
-zfs create -o mountpoint=/var/log \
-	   -o com.sun:auto-snapshot=false             	${pool}/var/log 
-zfs create -o com.sun:auto-snapshot=false -o exec=on \
-	   -o mountpoint=/var/tmp		  	${pool}/var/tmp
+	   -o canmount=off                              ${pool}/var
+zfs create -o com.sun:auto-snapshot=false             	${pool}/var/log 
+zfs create -o com.sun:auto-snapshot=false -o exec=on    ${pool}/var/tmp
 zfs create -o com.sun:auto-snapshot=false \
            -o mountpoint=/var/lib/nfs                 	${pool}/var/nfs
 
