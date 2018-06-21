@@ -3,7 +3,7 @@
 swap=/dev/zvol/${pool}/swap
 if [[ -e ${swap} ]]
 then
-	grep --silent /dev/zd0 /proc/swaps && swapoff ${swap}
+	grep --silent $(readlink -f ${swap}) /proc/swaps && swapoff ${swap}
 	zfs destroy -r ${pool}/swap
 fi
 SIZE=$(dmidecode -t 17 | awk '/Size\:/ { SIZE=(SIZE + $2)}; END { print SIZE}')M
