@@ -1,14 +1,23 @@
 #!/bin/bash
 . $(dirname $0)/conf
-SIZE=$(dmidecode -t 17 | awk '/Size\:/ { print $2 }')M
+swap=/dev/zvol/${pool}/swap
+if [[ -e ${swap} ]]
+then
+	grep --silent /dev/zd0 /proc/swaps && swapoff ${swap}
+	zfs destroy -r ${pool}/swap
+fi
+SIZE=$(dmidecode -t 17 | awk '/Size\:/ { SIZE=(SIZE + $2)}; END { print SIZE}')M
+test -n ${SIZE} 
 zfs create -V ${SIZE} -b $(getconf PAGESIZE) -o compression=zle \
       -o logbias=throughput -o sync=always \
       -o primarycache=metadata -o secondarycache=none \
       -o com.sun:auto-snapshot=false ${pool}/swap
 
+sleep 10
 mkswap /dev/zvol/${pool}/swap 
 
+sed -e "\%/dev/zvol/${pool}/swap%d" -i /etc/fstab
 cat >> /etc/fstab <<!
 /dev/zvol/${pool}/swap	none			swap	defaults		0	0
 !
-swapon -a
+swapon ${swap}
