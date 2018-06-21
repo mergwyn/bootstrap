@@ -21,6 +21,7 @@ zfs create -o mountpoint=/root                        		${pool}/root
 
 zfs create -o canmount=off -o com.sun:auto-snapshot=false	${pool}/boot
 zfs create -o com.sun:auto-snapshot=true 			${pool}/boot/grub
+zfs create -o canmount=off -o com.sun:auto-snapshot=false	${pool}/lxd
 
 # var entries not in BE
 zfs create -o canmount=off -o setuid=off -o exec=off \
