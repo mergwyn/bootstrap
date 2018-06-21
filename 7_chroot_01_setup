@@ -10,6 +10,9 @@ deb-src http://security.ubuntu.com/ubuntu $version-security main universe
 
 deb http://archive.ubuntu.com/ubuntu $version-updates main universe
 deb-src http://archive.ubuntu.com/ubuntu $version-updates main universe
+
+deb http://archive.ubuntu.com/ubuntu $version-backports main universe
+deb-src http://archive.ubuntu.com/ubuntu $version-backports main universe
 !
 
 rm /etc/mtab || true
@@ -26,6 +29,7 @@ cat > /etc/fstab <<!
 # <file system>		<mount point>		<type>	<options>			<dump>	<pass>
 proc			/proc			proc	nodev,noexec,nosuid		0	0
 tmpfs			/run			tmpfs	noatime,nodev,nosuid,mode=1777	0	0
+tmpfs			/tmp			tmpfs	noatime,nodev,nosuid,mode=1777	0	0
 !
 
 locale-gen en_GB.UTF-8
