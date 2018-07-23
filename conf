@@ -8,6 +8,7 @@ domain=theclarkhome.com
 version=xenial
 network=enp3s0
 BE=${pool}/ROOT/${root}
+efipart=9
 
 if [[ ! ${host} ]] 
 then
@@ -19,9 +20,11 @@ case ${host} in
 foxtrot)
 	boot=efi
 	disks="
-	/dev/disk/by-id/ata-SanDisk_SDSSDA120G_154715407711
 	/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722461404 
+	/dev/disk/by-id/ata-SanDisk_SSD_PLUS_120_GB_174505461706
 	"
+	wholedisk=true
+	boot=efi
 	;;
 golf)
 	disks="/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722459408"
@@ -51,7 +54,7 @@ case ${count} in
 esac
 
 case ${boot} in
-efi)	bootpart=-part9
+efi)	bootpart=-part${efipart}
 	mkdosfsargs="-n EFI";;
 *)	echo "need to set boot type" >&2; exit 1;;
 esac
