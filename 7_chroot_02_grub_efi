@@ -6,17 +6,22 @@
 apt-get install --yes  dosfstools
 apt install --yes grub-efi 
 [[ -d /boot/efi ]] || mkdir /boot/efi
+declare -i eficount=0
 for disk in ${disks}
 do
 	mkdosfs ${mkdosfsargs} ${disk}${bootpart}
 	PARTUUID=$(blkid -s PARTUUID -o value ${disk}${bootpart}) 
 	sed -e "\%$PARTUUID%d" -i /etc/fstab
 	echo PARTUUID=${PARTUUID} /boot/efi vfat nofail,x-systemd.device-timeout=1 0 1 >> /etc/fstab
-
+	systemctl daemon-reload
 	mount  ${disk}${bootpart} /boot/efi
 	grub-install --target=x86_64-efi --efi-directory=/boot/efi \
 	      --bootloader-id=ubuntu --recheck --no-floppy
 	grub-install --target=x86_64-efi ${disk}
+
+        eficount+=1
+	[[ ${eficount} > 1 ]] && 
+		efibootmgr -c -g -d ${disk} -p ${efipart} -L "ubuntu-${eficount}" -l '\EFI\Ubuntu\grubx64.efi'
 	umount /boot/efi
 done
 
