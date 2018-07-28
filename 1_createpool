@@ -14,6 +14,8 @@ features="
          -o feature@large_blocks=enabled 
 "
 #features=
+sgdisk="echo sgdisk"
+sgdisk="sgdisk"
 for disk in ${disks}
 do
       members+="${disk}${part} "
@@ -26,7 +28,7 @@ zap_partition()
 	[[ "${answer}" != "Y" ]] && exit
 	for disk in $disks
 	do
-		sgdisk --zap-all ${disk}
+		${sgdisk} --zap-all ${disk}
 	done
 }
 
@@ -34,7 +36,7 @@ mod_partition()
 {
 	for disk in $disks
 	do
-		sgdisk -t9:EF00 $disk
+		${sgdisk} -t9:EF00 $disk
 	done
 }
 create_partition()
@@ -44,16 +46,16 @@ create_partition()
 		if [[ "${boot}" = "efi" ]]
 		then
 			#Run this for UEFI booting (for use now or in the future):
-			sgdisk -n9:1M:+512M     -t9:EF00 $disk
+			${sgdisk} -n9:1M:+512M     -t9:EF00 $disk
 		else
 			#Run this if you need legacy (BIOS) booting:
-			#sgdisk -g -a1 -n2:34:2047  -t2:EF02 $disk
-			sgdisk -a1 -n2:34:2047  -t2:EF02 $disk
+			#${sgdisk} -g -a1 -n2:34:2047  -t2:EF02 $disk
+			${sgdisk} -a1 -n2:34:2047  -t2:EF02 $disk
 
 		fi
 
 		#Run these in all cases:
-		sgdisk     -n1:0:0      -t1:BF01 $disk
+		${sgdisk}     -n1:0:0      -t1:BF01 $disk
 
 	done
 }
@@ -70,6 +72,7 @@ create_pool()
 }
 
 apt update
+apt install gdisk
 apt install zfsutils-linux
 case ${host} in
 test)	create_pool
@@ -79,9 +82,9 @@ test)	create_pool
 	case ${wholedisk} in
 	true)	create_pool
 		mod_partition;;
-	*)	zap_partition
+	*)	create_partition
 		sleep 5
-		create_pool;;
+		#create_pool;;
 	esac
 	;;
 esac
