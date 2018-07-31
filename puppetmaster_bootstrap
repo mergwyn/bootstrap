@@ -1,0 +1,46 @@
+#/bin/bash
+
+WAIT=120
+_version=xenial
+_puppet=/opt/puppetlabs/bin/puppet
+
+
+cat <<! >/etc/apt/sources.list.d/pc_repo.list
+# pc_repo
+deb http://apt.puppetlabs.com ${_version} PC1
+!
+
+apt -y install wget
+wget https://apt.puppetlabs.com/puppetlabs-release-pc1-${_version}.deb
+dpkg -i puppetlabs-release-pc1-${_version}.deb
+apt -y update
+apt -y install puppetserver
+
+systemctl stop puppetmaster
+cat <<! >>/etc/puppet/puppet.conf
+[main]
+logdir=/var/log/puppet
+vardir=/var/lib/puppet
+ssldir=/var/lib/puppet/ssl
+rundir=/run/puppet
+factpath=\$vardir/lib/facter
+prerun_command=/etc/puppet/etckeeper-commit-pre
+postrun_command=/etc/puppet/etckeeper-commit-post
+
+[master]
+# These are needed when the puppetmaster is run by passenger
+# and can safely be removed if webrick is used.
+ssl_client_header = SSL_CLIENT_S_DN
+ssl_client_verify_header = SSL_CLIENT_VERIFY
+certname = echo.theclarkhome.com
+dns_alt_names = echo,echo.theclarkhome.com
+
+[agent]
+server = echo.theclarkhome.com
+!
+sudo rm -rf /var/lib/puppet/ssl
+
+
+${_puppet}  master --verbose --no-daemonize
+systemctl start puppetmaster
+apt -y install puppet-agent

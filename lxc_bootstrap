@@ -1,0 +1,170 @@
+#!/bin/bash
+#!set -o nounset
+#!set -o pipefail
+
+. /etc/lsb-release
+GUESTS=
+OSVERSION=${DISTRIB_CODENAME}
+ARCH=amd64
+domain=theclarkhome.com
+host=$(hostname)
+puppetmaster=echo
+PUPPET=agent
+BOOT=1
+MNTHOME=no
+MNTMEDIA=no
+MNTPUBLIC=no
+MNTSRC=no
+NESTING=no
+ENVIRONMENT=production
+PRIVMODE=no
+SIZE=20GB
+RAW=
+NETPLAN=disable_netplan
+
+Usage()
+{
+  cat <<EOF >&2
+$0: <flags> guests
+Allowed flags are:
+--arch=<arch> 			architecture [default = amd62]
+--boot=<1|0> 			autostart container at boot [default = 1]
+--environment=<environment> 	environment to use [default=production]
+--home=<yes|no>			mount home in guest [default = yes]
+--mac=<address>                 mac address
+--media=<yes|no>		mount media in guest [default = yes]
+--nesting=<yes|no>		enable security nesting (for nested lxd) [default = no]
+--privileged=<yes|no>		run guest in privileged mode [default = no]
+--public=<yes|no>		mount public in guest [default = yes]
+--puppet=<master|agent|no>	bootstrap puppet [default = agent]
+--raw=<value for raw.lxc>
+--size=<value>			root disk size [default = 20GB]
+--src=<value>			mount src in guest [default = no]
+--static=<ip>value>		static IP for interface
+EOF
+  exit 1
+}
+
+params="$(getopt -o a:h:p: --long arch:,boot:,environment:,home:,mac:,media:,nesting:,privileged:,public:,puppet:,raw:,size:,src:,static:,version: --name "$0" -- "$@")"
+eval set -- "$params"
+
+while true
+do
+  case "$1" in
+    -a|--arch)	        ARCH=$2; shift 2 ;;
+    --boot)		BOOT=$2; shift 2 ;;
+    --environment)	ENVIRONMENT=$2; shift 2 ;;
+    -h|--home)	        MNTHOME=$2; shift 2 ;;
+    --media)	        MNTMEDIA=$2; shift 2 ;;
+    --mac)	        MAC=$2; shift 2 ;;
+    --nesting)	        NESTING=$2; shift 2 ;;
+    --privileged)	PRIVMODE=$2; shift 2 ;;
+    --public)	        MNTPUBLIC=$2; shift 2 ;;
+    -p|--puppet)	PUPPET=$2; shift 2 ;;
+    --size)		SIZE=$2; shift 2 ;;
+    --raw)		RAW=$2; shift 2 ;;
+    --src)		MNTSRC=$2; shift 2 ;;
+    --static)	        IP=$2; shift 2 ;;
+    --version)	        OSVERSION=$2; shift 2 ;;
+    --)		        shift; break ;;
+    *)		        echo "Not implemented: $1" >&2;
+                        exit 1 ;;
+  esac
+done
+
+[[ $# -lt 1 ]] && Usage
+
+GUESTS="$@"
+
+for guest in "${GUESTS}"
+do
+  echo "Create ${guest} with flags: ARCH=${ARCH}, PUPPET=${PUPPET}, MNTHOME=${MNTHOME} MNTPUBLIC=${MNTPUBLIC} MNTMEDIA=${MNTMEDIA} NESTING=${NESTING} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION}"
+
+  VERSION=images:ubuntu/${OSVERSION}/${ARCH}
+  lxc init ${VERSION} ${guest} 
+
+  sleep 2
+  [[ "${PRIVMODE}" = "yes" ]] && lxc config set ${guest} security.privileged true
+  [[ "${NESTING}" = "yes" ]] && lxc config set ${guest} security.nesting true
+  [[ "${RAW}" ]] && lxc config set ${guest} raw.lxc "${RAW}"
+  [[ "${MAC}" ]] && lxc config set ${guest} volatile.eth0.hwaddr ${MAC}
+
+  [[ "${MNTHOME}" = "yes" ]] && \
+    lxc config device add ${guest} home disk path=/home source=/home recursive=true
+  [[ "${MNTMEDIA}" = "yes" ]] && \
+    lxc config device add ${guest} media disk path=/srv/media source=/srv/media recursive=true
+  [[ "${MNTPUBLIC}" = "yes" ]] && \
+    lxc config device add ${guest} public disk path=/srv/public source=/srv/public recursive=true
+  [[ "${MNTSRC}" = "yes" ]] && \
+    lxc config device add ${guest} src disk path=/usr/src source=/usr/src recursive=true
+  lxc config device set ${guest} root size ${SIZE}
+  lxc config set ${guest} boot.autostart ${BOOT}
+
+  #if [[ ${NETPLAN} ]]
+  #then 
+  #  config=/tmp/${guest}.cfg.$$
+  #  echo "network: {config: disabled}" > ${config}
+  #  lxc file push ${config} ${guest}/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+  #  sleep 2
+  #fi
+
+  if [ "${IP}" != "" ]
+  then
+    config=/tmp/${guest}.cfg.$$
+    cat <<! > ${config}
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+	address ${IP}
+$(grep	netmask /etc/network/interfaces)
+$(grep	dns-nameservers /etc/network/interfaces)
+$(grep	dns-search /etc/network/interfaces)
+$(grep	gateway /etc/network/interfaces)
+!
+    cat ${config}
+    lxc file push ${config} ${guest}/etc/network/interfaces
+    sleep 2
+  fi
+  echo "Starting ${guest}"
+  lxc start ${guest}
+  sleep 4
+  echo "Updating ${guest}"
+  lxc exec ${guest} -- apt update
+  lxc exec ${guest} -- apt -y upgrade
+ 
+  case "${PUPPET}" in
+  "agent")
+    echo "Setting up puppet"
+    lxc exec ${puppetmaster} --env LANG=$LANG} -- $(which puppet) cert clean  ${guest}.${domain}
+    lxc file push $(dirname $0)/ubuntu_puppet_bootstrap ${guest}///tmp/
+    lxc exec ${guest} -- bash /tmp/ubuntu_puppet_bootstrap ${ENVIRONMENT}
+    sleep 5
+    lxc exec echo -- $(which puppet) cert sign ${guest}.theclarkhome.com
+    sleep 2
+    lxc exec ${guest} -- $(which puppet) agent --test
+    ;;
+  "master")
+    echo "Setting up puppet"
+    lxc file push $(dirname $0)/puppetmaster_bootstrap ${guest}///tmp/
+    lxc exec ${guest} -- bash /tmp/puppetmaster_bootstrap
+    ;;
+  *)
+    # allow time for dhcp and dns to catchup
+    sleep 10
+  esac
+  if [[ ${NETPLAN} ]]
+  then 
+    lxc exec ${guest} apt install ifupdown net-tools
+  fi
+  echo "Reboot guest"
+  lxc restart ${guest} 
+  sleep 15
+  # set up keys for backuppc
+  $(dirname $0)/setkeys ${guest}
+
+done
+
+# vim: sw=2:ai:nu expandtab

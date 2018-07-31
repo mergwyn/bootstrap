@@ -1,0 +1,33 @@
+#/bin/bash
+. /etc/lsb-release
+_version=${DISTRIB_CODENAME}
+echo working around non-avialablity of puppet 4 for bionic
+_version=xenial
+
+WAIT="--waitforcert 120"
+WAIT=""
+_puppet=/opt/puppetlabs/bin/puppet
+_repo=puppetlabs-pc1.list
+
+cat <<! >/etc/apt/sources.list.d/${_repo}
+# pc_repo
+deb http://apt.puppetlabs.com ${_version} PC1
+!
+apt update
+apt -y install wget
+wget https://apt.puppetlabs.com/puppetlabs-release-pc1-${_version}.deb
+dpkg -i puppetlabs-release-pc1-${_version}.deb
+apt -y update
+apt -y install puppet-agent gnupg
+cat <<! >>/etc/puppetlabs/puppet/puppet.conf
+
+[agent]
+server = echo.theclarkhome.com
+environment = ${1:-"production"}
+!
+${_puppet} agent --enable
+#systemctl start puppet
+#echo "check puppet master for cert request and restart puppet if necessary - waiting for $WAIT seconds"
+echo "creating cert ready for signing"
+#echo "puppet cert sign $(hostname).theclarkhome.com"
+${_puppet} agent --test ${WAIT}
