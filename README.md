@@ -1,6 +1,8 @@
-# zfs-root
+# bootstrap
 
-a series of scripts designed to setup a zfs root. largely based on https://github.com/zfsonlinux/pkg-zfs/wiki/HOWTO-install-Ubuntu-16.04-to-a-Whole-Disk-Native-ZFS-Root-Filesystem-using-Ubiquity-GUI-installer
+Scripts to bootstrap containers and physical machines.
+
+The zfs sub directory contains a series of scripts designed to setup a zfs root. largely based on https://github.com/zfsonlinux/pkg-zfs/wiki/HOWTO-install-Ubuntu-16.04-to-a-Whole-Disk-Native-ZFS-Root-Filesystem-using-Ubiquity-GUI-installer
 
 These scripts go alittle further with whole disk support in the they use the standard partitioning from zpool create.
 
