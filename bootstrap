@@ -9,14 +9,14 @@ GUESTS="$@"
 for guest in "${GUESTS}"
 do
 	case ${guest} in
-	alpha)	$me/lxd_boostrap --privileged=yes --static=192.168.11.21 ${guest};;
-	bravo)	$me/lxd_boostrap --privileged=yes --static=192.168.11.22 ${guest};;
-	echo)	$me/lxd_boostrap --privileged=yes --puppet=master ${guest};;
-	lima)	$me/lxd_boostrap --boot=0 --nesting=yes --privileged=yes ${guest};;
+	alpha)	$me/lxd_boostrap --privileged --static=192.168.11.21 ${guest};;
+	bravo)	$me/lxd_boostrap --privileged --static=192.168.11.22 ${guest};;
+	echo)	$me/lxd_boostrap --privileged --puppet=master ${guest};;
+	lima)	$me/lxd_boostrap --boot=0 --nesting=yes --privileged ${guest};;
 	kilo)	$me/lxd_boostrap --boot=0 --nesting=yes ${guest};;
 	papa)	$me/lxd_boostrap --mac=00:16:3e:fc:2a:87 --arch=i386 ${guest};;
-	sierra)	$me/lxd_boostrap --privileged=yes ${guest};;
-	tango)	$me/lxd_boostrap --privileged=yes --raw="lxc.apparmor.profile=unconfined" ${guest};;
+	sierra)	$me/lxd_boostrap --privileged ${guest};;
+	tango)	$me/lxd_boostrap --privileged --nfs ${guest};;
 	yankee)	$me/lxd_boostrap --boot=0 --version=bionic --environment=development ${guest};;
 	*)	$me/lxd_boostrap ${guest};;
 	esac

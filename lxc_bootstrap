@@ -17,6 +17,7 @@ MNTPUBLIC=no
 MNTSRC=no
 NESTING=no
 ENVIRONMENT=production
+NFS=no
 PRIVMODE=no
 SIZE=20GB
 RAW=
@@ -34,7 +35,8 @@ Allowed flags are:
 --mac=<address>                 mac address
 --media=<yes|no>		mount media in guest [default = yes]
 --nesting=<yes|no>		enable security nesting (for nested lxd) [default = no]
---privileged=<yes|no>		run guest in privileged mode [default = no]
+--nfs    		        allow nfs mounts
+--privileged    		run guest in privileged mode 
 --public=<yes|no>		mount public in guest [default = yes]
 --puppet=<master|agent|no>	bootstrap puppet [default = agent]
 --raw=<value for raw.lxc>
@@ -45,7 +47,7 @@ EOF
   exit 1
 }
 
-params="$(getopt -o a:h:p: --long arch:,boot:,environment:,home:,mac:,media:,nesting:,privileged:,public:,puppet:,raw:,size:,src:,static:,version: --name "$0" -- "$@")"
+params="$(getopt -o a:h:p: --long arch:,boot:,environment:,home:,mac:,media:,nesting:,nfs,privileged,public:,puppet:,raw:,size:,src:,static:,version: --name "$0" -- "$@")"
 eval set -- "$params"
 
 while true
@@ -58,7 +60,8 @@ do
     --media)	        MNTMEDIA=$2; shift 2 ;;
     --mac)	        MAC=$2; shift 2 ;;
     --nesting)	        NESTING=$2; shift 2 ;;
-    --privileged)	PRIVMODE=$2; shift 2 ;;
+    --nfs)      	NFS=yes; shift ;;
+    --privileged)	PRIVMODE=yes; shift ;;
     --public)	        MNTPUBLIC=$2; shift 2 ;;
     -p|--puppet)	PUPPET=$2; shift 2 ;;
     --size)		SIZE=$2; shift 2 ;;
@@ -78,12 +81,17 @@ GUESTS="$@"
 
 for guest in "${GUESTS}"
 do
-  echo "Create ${guest} with flags: ARCH=${ARCH}, PUPPET=${PUPPET}, MNTHOME=${MNTHOME} MNTPUBLIC=${MNTPUBLIC} MNTMEDIA=${MNTMEDIA} NESTING=${NESTING} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION}"
+  echo "Create ${guest} with flags: ARCH=${ARCH}, PUPPET=${PUPPET}, MNTHOME=${MNTHOME} MNTPUBLIC=${MNTPUBLIC} MNTMEDIA=${MNTMEDIA} NESTING=${NESTING} infs=${NFS} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION}"
 
   VERSION=images:ubuntu/${OSVERSION}/${ARCH}
   lxc init ${VERSION} ${guest} 
 
   sleep 2
+  if [[ "${NFS}" = "yes" ]] 
+  then
+    PRIVMODE=yes
+    lxc config set ${guest} raw.apparmor "mount fstype=nfs,"
+  fi
   [[ "${PRIVMODE}" = "yes" ]] && lxc config set ${guest} security.privileged true
   [[ "${NESTING}" = "yes" ]] && lxc config set ${guest} security.nesting true
   [[ "${RAW}" ]] && lxc config set ${guest} raw.lxc "${RAW}"
