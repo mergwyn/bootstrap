@@ -1,13 +1,16 @@
 #!/bin/bash
 . $(dirname $0)/conf
 swap=/dev/zvol/${pool}/swap
+declare -i _mult=50 # percentage value of RAM to make swap
+declare -i SIZE=0
 if [[ -e ${swap} ]]
 then
 	grep --silent $(readlink -f ${swap}) /proc/swaps && swapoff ${swap}
 	zfs destroy -r ${pool}/swap
 fi
-SIZE=$(dmidecode -t 17 | awk '/Size\:/ { SIZE=(SIZE + $2)}; END { print SIZE}')M
+SIZE=$(free --giga | awk '/^Mem:/{print $2}')
 test -n ${SIZE} 
+SIZE=$((SIZE*_mult/100))
 zfs create -V ${SIZE} -b $(getconf PAGESIZE) -o compression=zle \
       -o logbias=throughput -o sync=always \
       -o primarycache=metadata -o secondarycache=none \
@@ -20,4 +23,3 @@ sed -e "\%/dev/zvol/${pool}/swap%d" -i /etc/fstab
 cat >> /etc/fstab <<!
 /dev/zvol/${pool}/swap	none			swap	defaults		0	0
 !
-swapon ${swap}
