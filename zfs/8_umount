@@ -5,6 +5,4 @@ rm $dir/etc/debian_chroot
 
 mount | grep -v zfs | tac | awk '/\/mnt/ {print $3}' | xargs -i{} umount -lf {}
 zfs umount -a
-zfs snapshot -r ${pool}@install
 zfs umount $dir
-zpool export ${pool}
