@@ -1,0 +1,38 @@
+#!/bin/bash
+POOLNAME=rpool
+
+[[ -d  /etc/zfs/zfs-list.cache ]] || mkdir /etc/zfs/zfs-list.cache
+[[ -d  /etc/systemd/system-generators ]] || mkdir /etc/systemd/system-generators
+
+getfile()
+{
+root=https://raw.githubusercontent.com/zfsonlinux/zfs/master
+path=$1
+target=$2
+file=$(basename ${path})
+source=${file}.in
+wget -O - ${root}/${path}.in |
+sed -e 's:@sysconfdir@:/etc:' \
+    -e 's:@runstatedir@:/var/run:' \
+    -e 's:@zfsexecdir@:/etc/zfs:' \
+    > ${target}/${file}
+
+}
+
+getfile etc/systemd/system-generators/zfs-mount-generator /etc/systemd/system-generators
+getfile man/man8/zfs-mount-generator.8 /usr/share/man/man8
+getfile cmd/zed/zed.d/history_event-zfs-list-cacher.sh /etc/zfs/zed.d/
+
+sed -i \
+    -e 's/^zed_exit_if_ignoring_this_event/#&/' \
+    -e 's/^zed_check_cmd "${ZFS}" sort diff grep/#&/' \
+    /etc/zfs/zed.d/history_event-zfs-list-cacher.sh
+
+chmod +x /etc/zfs/zed.d/history_event-zfs-list-cacher.sh
+
+
+[[ -d  /etc/zfs/zfs-list.cache ]] || mkdir /etc/zfs/zfs-list.cache
+touch /etc/zfs/zfs-list.cache/${POOLNAME}
+systemctl enable zed.service
+systemctl restart zed.service
+zfs set canmount=off ${POOLNAME}

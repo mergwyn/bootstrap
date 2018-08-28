@@ -1,0 +1,59 @@
+#!/bin/bash
+
+set -e
+
+if [[ $UID != 0 ]]
+then
+	echo $0 must be run as root
+	exit 1
+fi
+
+allocation=85 # % allocated
+pool=rpool
+diskname=ata-SanDisk_SSD_PLUS_120_GB_174505461706
+diskname=ata-SanDisk_SDSSDA120G_164722461404
+diskname=ata-Corsair_Force_LS_SSD_150381680001016703E4
+diskname=ata-Corsair_Force_LS_SSD_18047977000123960208
+disk=/dev/disk/by-id/${diskname}
+hdparm="echo hdparm" # delete echo why dry running complete
+hdparm="hdparm" 
+
+# check the disk exists
+ls -l ${disk}
+read -p "Is this the correct disk? " -n 1 -r
+echo
+[[ $REPLY =~ ^[Yy]$ ]] || exit 2
+
+
+# clear sssd: https://wiki.archlinux.org/index.php/Solid_state_drive/Memory_cell_clearing
+
+if ! hdparm -I ${disk} | grep -i "not	frozen"
+then
+	echo Drive is frozen, putting drive to sleep to unfreeze
+	echo Wake using the powerbutton
+	echo -n mem > /sys/power/state
+fi
+# Set password to allow erase (the password gets cleared by the secure-erase
+${hdparm} --user-master u --security-set-pass PASS ${disk}
+
+echo About to secure erase disk
+hdparm -I ${disk} | grep -i "SECURITY ERASE"
+${hdparm} --user-master u --security-erase PASS ${disk}
+
+# now erased, set for overprovisioning https://www.thomas-krenn.com/en/wiki/SSD_Over-provisioning_using_hdparm
+
+${hdparm} -N ${disk}
+
+# Calculate how many sectors to reserve
+declare -i sectors
+sectors=$(hdparm -N ${disk} | sed -n '/max sectors/s:.*/\(.*\),.*$:\1:p')
+maxsectors=$((sectors*${allocation}/100))
+
+
+cmd="${hdparm} -Np${maxsectors} --yes-i-know-what-i-am-doing ${disk}"
+echo Abbout to issue: ${cmd}
+read -p "Are you sure this is what you want to do? " -n 1 -r
+echo
+[[ $REPLY =~ ^[Yy]$ ]] || exit 3
+${cmd}
+echo Reboot to get the kernel to recognise the changes
