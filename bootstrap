@@ -9,16 +9,16 @@ GUESTS="$@"
 for guest in "${GUESTS}"
 do
 	case ${guest} in
-	alpha)	$me/lxc_bootsrap --privileged --static=192.168.11.21 ${guest};;
-	bravo)	$me/lxc_bootsrap --privileged --static=192.168.11.22 ${guest};;
-	echo)	$me/lxc_bootsrap --privileged --puppet=master ${guest};;
-	lima)	$me/lxc_bootsrap --boot=0 --nesting=yes --privileged ${guest};;
-	kilo)	$me/lxc_bootsrap --boot=0 --nesting=yes ${guest};;
-	papa)	$me/lxc_bootsrap --mac=00:16:3e:fc:2a:87 --arch=i386 ${guest};;
-	sierra)	$me/lxc_bootsrap --privileged ${guest};;
-	tango)	$me/lxc_bootsrap --privileged --nfs ${guest};;
-	#yankee)	$me/lxc_bootsrap --boot=0 --version=bionic --environment=development ${guest};;
-	yankee)	$me/lxc_bootsrap --boot=0 --version=bionic ${guest};;
-	*)	$me/lxc_bootsrap ${guest};;
+	alpha)	$me/lxc_bootstrap --privileged --static=192.168.11.21 ${guest};;
+	bravo)	$me/lxc_bootstrap --privileged --static=192.168.11.22 ${guest};;
+	echo)	$me/lxc_bootstrap --privileged --puppet=master ${guest};;
+	lima)	$me/lxc_bootstrap --boot=0 --nesting=yes --privileged ${guest};;
+	kilo)	$me/lxc_bootstrap --boot=0 --nesting=yes ${guest};;
+	papa)	$me/lxc_bootstrap --mac=00:16:3e:fc:2a:87 --arch=i386 ${guest};;
+	sierra)	$me/lxc_bootstrap --privileged ${guest};;
+	tango)	$me/lxc_bootstrap --privileged --nfs ${guest};;
+	#yankee)	$me/lxc_bootstrap --boot=0 --version=bionic --environment=development ${guest};;
+	yankee)	$me/lxc_bootstrap --boot=0 --version=bionic ${guest};;
+	*)	$me/lxc_bootstrap ${guest};;
 	esac
 done
