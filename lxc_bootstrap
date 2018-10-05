@@ -100,11 +100,11 @@ do
   [[ "${MNTHOME}" = "yes" ]] && \
     lxc config device add ${guest} home disk path=/home source=/home recursive=true
   [[ "${MNTMEDIA}" = "yes" ]] && \
-    lxc config device add ${guest} media disk path=/srv/media source=/srv/media recursive=true
+    lxc config device add ${guest} media disk path=/srv/media source=/srv/media 
   [[ "${MNTPUBLIC}" = "yes" ]] && \
-    lxc config device add ${guest} public disk path=/srv/public source=/srv/public recursive=true
+    lxc config device add ${guest} public disk path=/srv/public source=/srv/public 
   [[ "${MNTSRC}" = "yes" ]] && \
-    lxc config device add ${guest} src disk path=/usr/src source=/usr/src recursive=true
+    lxc config device add ${guest} src disk path=/usr/src source=/usr/src 
   lxc config device set ${guest} root size ${SIZE}
   lxc config set ${guest} boot.autostart ${BOOT}
 
