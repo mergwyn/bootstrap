@@ -14,7 +14,7 @@ do
 	echo)	$me/lxc_bootstrap --privileged --puppet=master ${guest};;
 	lima)	$me/lxc_bootstrap --boot=0 --nesting=yes --privileged ${guest};;
 	kilo)	$me/lxc_bootstrap --boot=0 --nesting=yes ${guest};;
-	papa)	$me/lxc_bootstrap --mac=00:16:3e:fc:2a:87 --arch=i386 ${guest};;
+	papa)	$me/lxc_bootstrap --mac=00:16:3e:fc:2a:87 ${guest};;
 	sierra)	$me/lxc_bootstrap --privileged ${guest};;
 	tango)	$me/lxc_bootstrap --privileged --nfs ${guest};;
 	#yankee)	$me/lxc_bootstrap --boot=0 --version=bionic --environment=development ${guest};;
