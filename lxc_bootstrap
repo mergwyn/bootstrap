@@ -1,6 +1,7 @@
 #!/bin/bash
-#!set -o nounset
-#!set -o pipefail
+set -o nounset
+set -o pipefail
+set -o errexit
 
 . /etc/lsb-release
 GUESTS=
@@ -8,9 +9,9 @@ OSVERSION=${DISTRIB_CODENAME}
 ARCH=amd64
 domain=theclarkhome.com
 host=$(hostname)
-puppetmaster=echo
 PUPPET=agent
 BOOT=1
+IP=
 MNTHOME=no
 MNTMEDIA=no
 MNTPUBLIC=no
@@ -22,13 +23,21 @@ PRIVMODE=no
 SIZE=20GB
 RAW=
 NETPLAN=disable_netplan
+case $host in
+  foxtrot)  POOL=array
+            puppetmaster=echo
+            ;;
+  *)        POOL=default
+            puppetmaster=foxtrot:echo
+            ;;
+esac
 
 Usage()
 {
   cat <<EOF >&2
 $0: <flags> guests
 Allowed flags are:
---arch=<arch> 			architecture [default = amd62]
+--arch=<arch> 			architecture [default = amd64]
 --boot=<1|0> 			autostart container at boot [default = 1]
 --environment=<environment> 	environment to use [default=production]
 --home=<yes|no>			mount home in guest [default = yes]
@@ -81,10 +90,10 @@ GUESTS="$@"
 
 for guest in "${GUESTS}"
 do
-  echo "Create ${guest} with flags: ARCH=${ARCH}, PUPPET=${PUPPET}, MNTHOME=${MNTHOME} MNTPUBLIC=${MNTPUBLIC} MNTMEDIA=${MNTMEDIA} NESTING=${NESTING} infs=${NFS} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION}"
+  echo "Create ${guest} with flags: ARCH=${ARCH}, PUPPET=${PUPPET}, MNTHOME=${MNTHOME} MNTPUBLIC=${MNTPUBLIC} MNTMEDIA=${MNTMEDIA} NESTING=${NESTING} infs=${NFS} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL}"
 
   VERSION=images:ubuntu/${OSVERSION}/${ARCH}
-  lxc init ${VERSION} ${guest} 
+  lxc init ${VERSION} ${guest} || true
 
   sleep 2
   if [[ "${NFS}" = "yes" ]] 
@@ -105,7 +114,7 @@ do
     lxc config device add ${guest} public disk path=/srv/public source=/srv/public 
   [[ "${MNTSRC}" = "yes" ]] && \
     lxc config device add ${guest} src disk path=/usr/src source=/usr/src 
-  lxc config device set ${guest} root size ${SIZE}
+  lxc config device add ${guest} root disk path=/ pool=${POOL} size=${SIZE}
   lxc config set ${guest} boot.autostart ${BOOT}
 
   #if [[ ${NETPLAN} ]]
@@ -148,9 +157,9 @@ $(grep	gateway /etc/network/interfaces)
     echo "Setting up puppet"
     lxc exec ${puppetmaster} --env LANG=$LANG} -- $(which puppet) cert clean  ${guest}.${domain}
     lxc file push $(dirname $0)/ubuntu_puppet_bootstrap ${guest}///tmp/
-    lxc exec ${guest} -- bash /tmp/ubuntu_puppet_bootstrap ${ENVIRONMENT}
+    lxc exec ${guest} -- bash /tmp/ubuntu_puppet_bootstrap ${ENVIRONMENT} || true
     sleep 5
-    lxc exec echo -- $(which puppet) cert sign ${guest}.theclarkhome.com
+    lxc exec ${puppetmaster} -- $(which puppet) cert sign ${guest}.theclarkhome.com
     sleep 2
     lxc exec ${guest} -- $(which puppet) agent --test
     ;;
