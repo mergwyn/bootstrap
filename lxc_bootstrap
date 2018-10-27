@@ -1,28 +1,31 @@
 #!/bin/bash
 set -o nounset
 set -o pipefail
-set -o errexit
+#set -o errexit
 
 . /etc/lsb-release
-GUESTS=
-OSVERSION=${DISTRIB_CODENAME}
 ARCH=amd64
-domain=theclarkhome.com
-host=$(hostname)
-PUPPET=agent
 BOOT=1
+domain=theclarkhome.com
+ENVIRONMENT=production
+GUESTS=
+GPU=no
+host=$(hostname)
 IP=
+MAC=
 MNTHOME=no
 MNTMEDIA=no
 MNTPUBLIC=no
 MNTSRC=no
 NESTING=no
-ENVIRONMENT=production
-NFS=no
-PRIVMODE=no
-SIZE=20GB
-RAW=
 NETPLAN=disable_netplan
+NFS=no
+OSVERSION=${DISTRIB_CODENAME}
+PRIVMODE=no
+PUPPET=agent
+RAW=
+SIZE=20GB
+
 case $host in
   foxtrot)  POOL=array
             puppetmaster=echo
@@ -40,6 +43,7 @@ Allowed flags are:
 --arch=<arch> 			architecture [default = amd64]
 --boot=<1|0> 			autostart container at boot [default = 1]
 --environment=<environment> 	environment to use [default=production]
+--gpu                           add gpu
 --home=<yes|no>			mount home in guest [default = yes]
 --mac=<address>                 mac address
 --media=<yes|no>		mount media in guest [default = yes]
@@ -56,7 +60,7 @@ EOF
   exit 1
 }
 
-params="$(getopt -o a:h:p: --long arch:,boot:,environment:,home:,mac:,media:,nesting:,nfs,privileged,public:,puppet:,raw:,size:,src:,static:,version: --name "$0" -- "$@")"
+params="$(getopt -o a:h:p: --long arch:,boot:,environment:,gpu,home:,mac:,media:,nesting:,nfs,privileged,public:,puppet:,raw:,size:,src:,static:,version: --name "$0" -- "$@")"
 eval set -- "$params"
 
 while true
@@ -69,6 +73,7 @@ do
     --media)	        MNTMEDIA=$2; shift 2 ;;
     --mac)	        MAC=$2; shift 2 ;;
     --nesting)	        NESTING=$2; shift 2 ;;
+    --gpu)      	GPU=yes; shift ;;
     --nfs)      	NFS=yes; shift ;;
     --privileged)	PRIVMODE=yes; shift ;;
     --public)	        MNTPUBLIC=$2; shift 2 ;;
@@ -105,6 +110,9 @@ do
   [[ "${NESTING}" = "yes" ]] && lxc config set ${guest} security.nesting true
   [[ "${RAW}" ]] && lxc config set ${guest} raw.lxc "${RAW}"
   [[ "${MAC}" ]] && lxc config set ${guest} volatile.eth0.hwaddr ${MAC}
+
+  [[ "${GPU}" = "yes" ]] && \
+    lxc config device add ${guest} gpu gpu gid=44
 
   [[ "${MNTHOME}" = "yes" ]] && \
     lxc config device add ${guest} home disk path=/home source=/home recursive=true
