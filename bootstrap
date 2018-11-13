@@ -9,15 +9,17 @@ GUESTS="$@"
 for guest in "${GUESTS}"
 do
 	case ${guest} in
+	# production
 	alpha)	$me/lxc_bootstrap --privileged --static=192.168.11.21 ${guest};;
 	bravo)	$me/lxc_bootstrap --privileged --static=192.168.11.22 ${guest};;
 	echo)	$me/lxc_bootstrap --privileged --puppet=master ${guest};;
+	papa)	$me/lxc_bootstrap --arch=i386 --mac=00:16:3e:fc:2a:87 ${guest};;
+	tango)	$me/lxc_bootstrap --privileged --nfs --home=yes --media=yes --gpu ${guest};;
+	# testing
 	lima)	$me/lxc_bootstrap --boot=0 --nesting=yes --privileged ${guest};;
 	kilo)	$me/lxc_bootstrap --boot=0 --nesting=yes ${guest};;
-	papa)	$me/lxc_bootstrap --arch=i386 --mac=00:16:3e:fc:2a:87 ${guest};;
+	romeo)	$me/lxc_bootstrap --boot=0 --version=bionic ${guest};;
 	sierra)	$me/lxc_bootstrap --privileged ${guest};;
-	tango)	$me/lxc_bootstrap --privileged --nfs --home=yes --media=yes --gpu ${guest};;
-	#yankee)	$me/lxc_bootstrap --boot=0 --version=bionic --environment=development ${guest};;
 	yankee)	$me/lxc_bootstrap --boot=0 --version=bionic ${guest};;
 	*)	$me/lxc_bootstrap ${guest};;
 	esac
