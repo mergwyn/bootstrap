@@ -26,6 +26,9 @@ PUPPET=agent
 RAW=
 SIZE=20GB
 
+#bold() { echo echo -e "\e[32m$*\e[0m"; }
+bold() { echo $(tput smso)$*$(tput rmso); }
+
 case $host in
   foxtrot)  POOL=array
             puppetmaster=echo
@@ -95,7 +98,7 @@ GUESTS="$@"
 
 for guest in "${GUESTS}"
 do
-  echo "Create ${guest} with flags: ARCH=${ARCH}, PUPPET=${PUPPET}, MNTHOME=${MNTHOME} MNTPUBLIC=${MNTPUBLIC} MNTMEDIA=${MNTMEDIA} NESTING=${NESTING} infs=${NFS} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL}"
+  echo "Create ${guest} with flags: ARCH=${ARCH}, PUPPET=${PUPPET}, MNTHOME=${MNTHOME} MNTPUBLIC=${MNTPUBLIC} MNTMEDIA=${MNTMEDIA} NESTING=${NESTING} nfs=${NFS} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL}"
 
   VERSION=images:ubuntu/${OSVERSION}/${ARCH}
   lxc init ${VERSION} ${guest} || true
@@ -153,26 +156,27 @@ $(grep	gateway /etc/network/interfaces)
     lxc file push ${config} ${guest}/etc/network/interfaces
     sleep 2
   fi
-  echo "Starting ${guest}"
+  bold "Starting ${guest}"
   lxc start ${guest}
   sleep 4
-  echo "Updating ${guest}"
+  bold "Updating ${guest}"
   lxc exec ${guest} -- apt update
   lxc exec ${guest} -- apt -y upgrade
  
   case "${PUPPET}" in
   "agent")
-    echo "Setting up puppet"
+    bold "Setting up puppet"
     lxc exec ${puppetmaster} --env LANG=$LANG} -- $(which puppet) cert clean  ${guest}.${domain}
     lxc file push $(dirname $0)/ubuntu_puppet_bootstrap ${guest}///tmp/
     lxc exec ${guest} -- bash /tmp/ubuntu_puppet_bootstrap ${ENVIRONMENT} || true
     sleep 5
+    bold "Signing key on master"
     lxc exec ${puppetmaster} -- $(which puppet) cert sign ${guest}.theclarkhome.com
     sleep 2
     lxc exec ${guest} -- $(which puppet) agent --test
     ;;
   "master")
-    echo "Setting up puppet"
+    bold "Setting up puppet"
     lxc file push $(dirname $0)/puppetmaster_bootstrap ${guest}///tmp/
     lxc exec ${guest} -- bash /tmp/puppetmaster_bootstrap
     ;;
@@ -184,7 +188,7 @@ $(grep	gateway /etc/network/interfaces)
   then 
     lxc exec ${guest} apt install ifupdown net-tools
   fi
-  echo "Reboot guest"
+  bold "Reboot guest"
   lxc restart ${guest} 
   sleep 15
   # set up keys for backuppc
