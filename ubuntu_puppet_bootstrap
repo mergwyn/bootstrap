@@ -1,24 +1,17 @@
 #/bin/bash
 . /etc/lsb-release
 _version=${DISTRIB_CODENAME}
-echo working around non-avialablity of puppet 4 for bionic
-_version=xenial
 
 WAIT="--waitforcert 120"
 WAIT=""
 _puppet=/opt/puppetlabs/bin/puppet
-_repo=puppetlabs-pc1.list
 
-cat <<! >/etc/apt/sources.list.d/${_repo}
-# pc_repo
-deb http://apt.puppetlabs.com ${_version} PC1
-!
 apt update
 apt -y install wget
-wget https://apt.puppetlabs.com/puppetlabs-release-pc1-${_version}.deb
-dpkg -i puppetlabs-release-pc1-${_version}.deb
+wget https://apt.puppetlabs.com/puppet5-release-${_version}.deb
+sudo dpkg -i puppet5-release-${_version}.deb
 apt -y update
-apt -y install puppet-agent gnupg
+apt -y install puppet-agent 
 cat <<! >>/etc/puppetlabs/puppet/puppet.conf
 
 [agent]
