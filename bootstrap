@@ -18,7 +18,7 @@ do
 	# testing
 	lima)	$me/lxc_bootstrap --boot=0 --nesting=yes --privileged ${guest};;
 	kilo)	$me/lxc_bootstrap --boot=0 --nesting=yes ${guest};;
-	romeo)	$me/lxc_bootstrap --boot=0 --version=bionic ${guest};;
+	romeo)	$me/lxc_bootstrap --boot=0 --mac=00:16:3e:fb:dc:5e ${guest};;
 	sierra)	$me/lxc_bootstrap --privileged ${guest};;
 	yankee)	$me/lxc_bootstrap --boot=0 --version=bionic ${guest};;
 	*)	$me/lxc_bootstrap ${guest};;
