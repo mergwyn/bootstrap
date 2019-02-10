@@ -14,6 +14,7 @@ host=$(hostname)
 IP=
 MAC=
 MNTHOME=no
+MNTNET=no
 MNTMEDIA=no
 MNTPUBLIC=no
 MNTSRC=no
@@ -24,6 +25,7 @@ OSVERSION=${DISTRIB_CODENAME}
 PRIVMODE=no
 PUPPET=agent
 RAW=
+ROLE=
 SIZE=20GB
 
 #bold() { echo echo -e "\e[32m$*\e[0m"; }
@@ -56,6 +58,7 @@ Allowed flags are:
 --public=<yes|no>		mount public in guest [default = yes]
 --puppet=<master|agent|no>	bootstrap puppet [default = agent]
 --raw=<value for raw.lxc>
+--role=<role
 --size=<value>			root disk size [default = 20GB]
 --src=<value>			mount src in guest [default = no]
 --static=<ip>value>		static IP for interface
@@ -63,7 +66,7 @@ EOF
   exit 1
 }
 
-params="$(getopt -o a:h:p: --long arch:,boot:,environment:,gpu,home:,mac:,media:,nesting:,nfs,privileged,public:,puppet:,raw:,size:,src:,static:,version: --name "$0" -- "$@")"
+params="$(getopt -o a:h:p: --long arch:,boot:,environment:,gpu,home:,mac:,media:,nesting:,nfs,privileged,public:,puppet:,raw:,role:,size:,src:,static:,version: --name "$0" -- "$@")"
 eval set -- "$params"
 
 while true
@@ -77,12 +80,14 @@ do
     --mac)	        MAC=$2; shift 2 ;;
     --nesting)	        NESTING=$2; shift 2 ;;
     --gpu)      	GPU=yes; shift ;;
+    --net)      	MNTNET=yes; shift ;;
     --nfs)      	NFS=yes; shift ;;
     --privileged)	PRIVMODE=yes; shift ;;
     --public)	        MNTPUBLIC=$2; shift 2 ;;
     -p|--puppet)	PUPPET=$2; shift 2 ;;
     --size)		SIZE=$2; shift 2 ;;
     --raw)		RAW=$2; shift 2 ;;
+    --role)		ROLE=$2; shift 2 ;;
     --src)		MNTSRC=$2; shift 2 ;;
     --static)	        IP=$2; shift 2 ;;
     --version)	        OSVERSION=$2; shift 2 ;;
@@ -98,7 +103,7 @@ GUESTS="$@"
 
 for guest in "${GUESTS}"
 do
-  echo "Create ${guest} with flags: ARCH=${ARCH}, PUPPET=${PUPPET}, MNTHOME=${MNTHOME} MNTPUBLIC=${MNTPUBLIC} MNTMEDIA=${MNTMEDIA} NESTING=${NESTING} nfs=${NFS} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL}"
+  echo "Create ${guest} with flags: ROLE=${ROLE}, ARCH=${ARCH}, PUPPET=${PUPPET}, MNTHOME=${MNTHOME} MNTPUBLIC=${MNTPUBLIC} MNTMEDIA=${MNTMEDIA} NESTING=${NESTING} nfs=${NFS} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL}"
 
   VERSION=images:ubuntu/${OSVERSION}/${ARCH}
   lxc init ${VERSION} ${guest} || true
@@ -125,6 +130,8 @@ do
     lxc config device add ${guest} public disk path=/srv/public source=/srv/public 
   [[ "${MNTSRC}" = "yes" ]] && \
     lxc config device add ${guest} src disk path=/usr/src source=/usr/src 
+  [[ "${MNTNET}" = "yes" ]] && \
+    lxc config device add ${guest} net disk path=/net source=/net 
   lxc config device add ${guest} root disk path=/ pool=${POOL} size=${SIZE}
   lxc config set ${guest} boot.autostart ${BOOT}
 
@@ -168,26 +175,30 @@ $(grep	gateway /etc/network/interfaces)
     bold "Setting up puppet"
     lxc exec ${puppetmaster} --env LANG=$LANG} -- $(which puppet) cert clean  ${guest}.${domain}
     lxc file push $(dirname $0)/ubuntu_puppet_bootstrap ${guest}///tmp/
-    lxc exec ${guest} -- bash /tmp/ubuntu_puppet_bootstrap ${ENVIRONMENT} || true
+    lxc exec ${guest} -- bash /tmp/ubuntu_puppet_bootstrap ${ENVIRONMENT} ${ROLE} || true
     sleep 5
     bold "Signing key on master"
     lxc exec ${puppetmaster} -- $(which puppet) cert sign ${guest}.theclarkhome.com
     sleep 2
+    if [[ ${NETPLAN} ]]
+    then 
+      lxc exec ${guest} apt install ifupdown net-tools
+    fi
     lxc exec ${guest} -- $(which puppet) agent --test
     ;;
   "master")
     bold "Setting up puppet"
     lxc file push $(dirname $0)/puppetmaster_bootstrap ${guest}///tmp/
     lxc exec ${guest} -- bash /tmp/puppetmaster_bootstrap
+    if [[ ${NETPLAN} ]]
+    then 
+      lxc exec ${guest} apt install ifupdown net-tools
+    fi
     ;;
   *)
     # allow time for dhcp and dns to catchup
     sleep 10
   esac
-  if [[ ${NETPLAN} ]]
-  then 
-    lxc exec ${guest} apt install ifupdown net-tools
-  fi
   bold "Reboot guest"
   lxc restart ${guest} 
   sleep 15
