@@ -1,0 +1,57 @@
+#!/bin/bash
+
+
+guest=${1}
+role=${2}
+sc=systemctl
+sc=sc
+
+if [[ "${guest}" = "" || ${role} = "" ]]
+then
+	echo usage: $0 guest role
+	exit 1
+fi
+
+if [[ "${guest}" = "$(hostname)" ]]
+then
+	command=""
+else
+	lxc info ${guest} >/dev/null 2>&1
+	if [ $? -eq 0 ]
+	then
+		command="lxc exec ${guest} -- "
+	else
+		command="ssh ${guest} "
+	fi
+fi
+function pushfile ()
+{
+  _guest=$1
+  _source=$1
+  _target=$3
+  if lxc info ${guest} >/dev/null 2>&1
+  then
+    lxc file push ${_source} ${_guest}/$(_target}
+  else
+    scp ${_source} ${_guest}:${_target}
+  fi
+}
+
+cert=${guest#*:}.theclarkhome.com
+
+set -x
+cat > /tmp/csr.yaml <<!
+---
+extension_requests:
+  pp_role: '$role'
+!
+config=$(${command} puppet config print config)
+pushfile ${guest} "/tmp/csr.yaml" "${config}/csr_attributes.yaml"
+${command} ${sc} stop puppet
+${command} rm -rf /etc/puppetlabs/puppet/ssl
+lxc exec echo $(which puppet) cert clean ${cert}
+${command} $(which puppet) agent --test 
+lxc exec echo $(which puppet) cert sign ${cert}
+sleep 3
+${command} $(which puppet) agent --test
+${command} ${sc} start puppet
