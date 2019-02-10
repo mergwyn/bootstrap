@@ -10,16 +10,17 @@ for guest in "${GUESTS}"
 do
 	case ${guest} in
 	# production
-	alpha)	$me/lxc_bootstrap --privileged --static=192.168.11.21 ${guest};;
+	alpha)	$me/lxc_bootstrap --role=domain_controller --privileged --static=192.168.11.21 ${guest};;
 	bravo)	$me/lxc_bootstrap --privileged --static=192.168.11.22 ${guest};;
 	echo)	$me/lxc_bootstrap --privileged --puppet=master ${guest};;
+	india)	$me/lxc_bootstrap --media=yes --mac=00:16:3e:93:c6:21 --nfs ${guest};;
 	papa)	$me/lxc_bootstrap --arch=i386 --mac=00:16:3e:fc:2a:87 ${guest};;
-	tango)	$me/lxc_bootstrap --privileged --nfs --home=yes --media=yes --gpu ${guest};;
+	romeo)	$me/lxc_bootstrap --privileged --mac=00:16:3e:fb:dc:5e --media=yes ${guest};;
+	tango)	$me/lxc_bootstrap --privileged --nfs --net --home=yes --media=yes --gpu ${guest};;
 	# testing
 	lima)	$me/lxc_bootstrap --boot=0 --nesting=yes --privileged ${guest};;
 	kilo)	$me/lxc_bootstrap --boot=0 --nesting=yes ${guest};;
-	romeo)	$me/lxc_bootstrap --boot=0 --mac=00:16:3e:fb:dc:5e ${guest};;
-	sierra)	$me/lxc_bootstrap --privileged ${guest};;
+	sierra)	$me/lxc_bootstrap --role=domain_controller --environment=development --boot=0 ${guest};;
 	yankee)	$me/lxc_bootstrap --boot=0 --version=bionic ${guest};;
 	*)	$me/lxc_bootstrap ${guest};;
 	esac
