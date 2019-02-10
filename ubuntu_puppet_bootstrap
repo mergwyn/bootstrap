@@ -2,7 +2,8 @@
 . /etc/lsb-release
 _version=${DISTRIB_CODENAME}
 
-WAIT="--waitforcert 120"
+ROLE=${2}
+
 WAIT=""
 _puppet=/opt/puppetlabs/bin/puppet
 
@@ -18,6 +19,13 @@ cat <<! >>/etc/puppetlabs/puppet/puppet.conf
 server = echo.theclarkhome.com
 environment = ${1:-"production"}
 !
+
+cat > /etc/puppetlabs/puppet/csr_attributes.yaml <<!
+---
+extension_requests:
+  pp_role: '$ROLE'
+!
+
 ${_puppet} agent --enable
 #systemctl start puppet
 #echo "check puppet master for cert request and restart puppet if necessary - waiting for $WAIT seconds"
