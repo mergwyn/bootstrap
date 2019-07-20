@@ -20,32 +20,31 @@ case ${host} in
 foxtrot)
 	boot=efi
 	wholedisk=true
-	disks="
-	/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722461404 
-	/dev/disk/by-id/ata-SanDisk_SSD_PLUS_120_GB_174505461706
-	"
+        . $(dirname $0)/selectdisks
+	#disks="
+	#/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722461404 
+	#/dev/disk/by-id/ata-SanDisk_SSD_PLUS_120_GB_174505461706
+	#"
 	;;
 golf)
 	boot=efi
 	wholedisk=true
-	disks="/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722459408"
+        . $(dirname $0)/selectdisks
+	#disks="/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722459408"
 	;;
 test)
 	wholedisk=true
 	boot=efi
 	pool=testpool
-	disks="/test/1.img"
+	DISKS=("/test/1.img")
 	;;
 esac
-ls -l ${disks}
+ls -l ${DISKS}
 
-declare -i count=0
-for disk in ${disks}
-do
-	count+=1
-done
+declare -i count=${#DISKS[@]}
 
 echo $count
+
 case ${count} in
 1)	pooltype=;;
 2)	pooltype=mirror;;

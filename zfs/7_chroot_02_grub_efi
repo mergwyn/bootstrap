@@ -9,7 +9,7 @@ apt install --yes grub-efi
 mountpoint -q /boot/efi && umount /boot/efi
 declare -i eficount=0
 sed -i -e '/PARTUUID=.*\/boot\/efi/d' /etc/fstab
-for disk in ${disks}
+for disk in "${DISKS[@]}"
 do
 	mkdosfs ${mkdosfsargs} ${disk}${bootpart}
 	PARTUUID=$(blkid -s PARTUUID -o value ${disk}${bootpart}) 

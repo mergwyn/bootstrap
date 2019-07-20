@@ -16,17 +16,17 @@ features="
 #features=
 sgdisk="echo sgdisk"
 sgdisk="sgdisk"
-for disk in ${disks}
+for disk in "${DISKS[@]}"
 do
       members+="${disk}${part} "
 done
 
 zap_partition() 
 {
-	echo -n "about to zap all partitions on ${disks} - are you sure? [Y/N]"
+	echo -n "about to zap all partitions on ${DISKS[@]} - are you sure? [Y/N]"
 	read answer
 	[[ "${answer}" != "Y" ]] && exit
-	for disk in $disks
+	for disk in "${DISKS[@]}"
 	do
 		${sgdisk} --zap-all ${disk}
 	done
@@ -34,14 +34,14 @@ zap_partition()
 
 mod_partition()
 {
-	for disk in $disks
+	for disk in "${DISKS[@]}"
 	do
 		${sgdisk} -t9:EF00 $disk
 	done
 }
 create_partition()
 {
-	for disk in $disks
+	for disk in "${DISKS[@]}"
 	do
 		if [[ "${boot}" = "efi" ]]
 		then
