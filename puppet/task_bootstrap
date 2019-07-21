@@ -1,0 +1,116 @@
+#/bin/bash
+
+set -o nounset
+set -o pipefail
+set -o errexit
+
+. /etc/lsb-release
+host=$(hostname)
+domain=theclarkhome.com
+ENVIRONMENT=production
+OS=
+ROLE=
+
+#bold() { echo echo -e "\e[32m$*\e[0m"; }
+bold() { echo $(tput smso)$*$(tput rmso); }
+
+case $host in
+  foxtrot)  puppetmaster=echo
+            ;;
+  *)        puppetmaster=foxtrot:echo
+            ;;
+esac
+
+Usage()
+{
+  cat <<EOF >&2
+$0: <flags> guests
+Allowed flags are:
+--environment=<environment> 	environment to use [default=production]
+--role=<role
+--os=[linux|windows|darwin]     root disk size [default = 20GB]
+EOF
+  exit 1
+}
+
+params="$(getopt -o e:o:r: --long environment:,os:,role: --name "$0" -- "$@")"
+
+eval set -- "$params"
+
+while true
+do
+  case "$1" in
+    -e|--environment)	ENVIRONMENT=$2; shift 2 ;;
+    -o|--os)	        OS=$2; shift 2 ;;
+    -r|--role)		ROLE=$2; shift 2 ;;
+    --)		        shift; break ;;
+    *)		        echo "Not implemented: $1" >&2;
+                        exit 1 ;;
+  esac
+done
+
+[[ $# -lt 1 ]] && Usage
+
+GUESTS="$@"
+
+case ${OS} in
+linux)   user="root"
+         ;;
+windows) user="administrator@theclarkhome.com"
+         ;;
+*)       echo "Invalid value '${OS}' for OS" >&2;
+         Usage
+         exit 1 ;;
+esac
+
+if [[ -z ${ROLE} ]]
+then
+  echo "Invalid value '${OS}' for ROLE" >&2;
+  Usage
+  exit 1 
+fi
+
+for guest in "${GUESTS}"
+do
+  certname=${guest}.${domain}
+  case ${OS} in
+  linux)   node=${certname}
+           args=
+           ;;
+  windows) node=winrm://${certname}
+           args="certname=${certname} --no-ssl"
+           # Not sure why this is needed, but this seems to kick winrm into action!
+           bolt script run testconnection.ps1 --nodes ${node} --no-ssl --user ${user{ --password
+           ;;
+  esac
+
+  echo "bootstrap ${guest} with flags: ROLE=${ROLE}, OS=${OS} ENVIRONMENT=${ENVIRONMENT}"
+
+  bold "Removing key on master"
+  lxc exec ${puppetmaster} -- $(which puppet) cert clean  ${guest}.${domain}
+
+#      --params "{ \
+#        \"master\":\"${puppetmaster}.${domain}\", \
+#        \"environment\":\"${ENVIRONMENT}\", \
+#        \"extension_request\":[\"pp_role=${ROLE}\"] \
+#      }" \
+  lxc exec ${puppetmaster} -- \
+    $(which bolt) task run bootstrap::${OS} \
+      --nodes ${node} \
+      master=${puppetmaster}.${domain} \
+      extension_request="[\"pp_role=${ROLE}\"]" \
+      ${args} \
+      --user ${user} --password \
+      --modulepath /etc/puppetlabs/code/environments/${ENVIRONMENT}/modules
+
+  sleep 5
+  bold "Signing key on master"
+  lxc exec ${puppetmaster} -- $(which puppet) cert sign ${guest}.theclarkhome.com
+  sleep 2
+
+  # allow time for dhcp and dns to catchup
+  sleep 10
+
+done
+
+# vim: sw=2:ai:nu expandtab
