@@ -1,0 +1,42 @@
+#!/bin/bash
+
+
+WIDTH=74
+HEIGHT=20
+eval $(resize)
+[[ $COLUMNS ]] && WIDTH=$(( $COLUMNS - 8 ))
+[[ $LINESCOLUMNS ]] && HEIGHT=$(( $LINES - 8 ))
+
+declare -A BYID
+while read -r IDLINK; do
+	BYID["$(basename "$(readlink "$IDLINK")")"]="$IDLINK"
+done < <(find /dev/disk/by-id/ -type l)
+
+for DISK in $(lsblk -I8,254,259 -dn -o name); do
+	if [ -z "${BYID[$DISK]}" ]; then
+		SELECT+=("$DISK" "(no /dev/disk/by-id persistent device name available)" off)
+	else
+		SELECT+=("$DISK" "${BYID[$DISK]}" off)
+	fi
+done
+
+TMPFILE=$(mktemp)
+whiptail --backtitle "$0" --title "Drive selection" --separate-output \
+	--checklist "\nPlease select ZFS RAID drives\n" ${HEIGHT} ${WIDTH} 8 "${SELECT[@]}" 2>"$TMPFILE"
+if [ $? -ne 0 ]; then
+	exit 1
+fi
+
+while read -r DISK; do
+	if [ -z "${BYID[$DISK]}" ]; then
+		DISKS+=("/dev/$DISK")
+		ZFSPARTITIONS+=("/dev/$DISK$PARTZFS")
+		EFIPARTITIONS+=("/dev/$DISK$PARTEFI")
+	else
+		DISKS+=("${BYID[$DISK]}")
+		ZFSPARTITIONS+=("${BYID[$DISK]}-part$PARTZFS")
+		EFIPARTITIONS+=("${BYID[$DISK]}-part$PARTEFI")
+	fi
+done < "$TMPFILE"
+
+declare -p DISKS
