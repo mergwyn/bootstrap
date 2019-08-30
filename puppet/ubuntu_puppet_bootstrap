@@ -9,8 +9,8 @@ _puppet=/opt/puppetlabs/bin/puppet
 
 apt update
 apt -y install wget
-wget https://apt.puppetlabs.com/puppet5-release-${_version}.deb
-sudo dpkg -i puppet5-release-${_version}.deb
+wget https://apt.puppetlabs.com/puppet6-release-${_version}.deb
+sudo dpkg -i puppet6-release-${_version}.deb
 apt -y update
 apt -y install puppet-agent 
 cat <<! >>/etc/puppetlabs/puppet/puppet.conf
