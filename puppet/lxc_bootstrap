@@ -173,16 +173,20 @@ $(grep	gateway /etc/network/interfaces)
   case "${PUPPET}" in
   "agent")
     bold "Setting up puppet"
-    lxc exec ${puppetmaster} --env LANG=$LANG} -- $(which puppet) cert clean  ${guest}.${domain}
+    #echo $(dirname $0)/task_bootstrap --role=${ROLE} --os=linux --env=${ENVIRONMENT} ${guest}
+    #read
+    #$(dirname $0)/task_bootstrap --role=${ROLE} --os=linux --env=${ENVIRONMENT} ${guest}
+    lxc exec ${puppetmaster} --env LANG=${LANG} -- $(dirname $(which puppet))/puppetserver ca clean --certname  ${guest}.${domain}
     lxc file push $(dirname $0)/ubuntu_puppet_bootstrap ${guest}///tmp/
     lxc exec ${guest} -- bash /tmp/ubuntu_puppet_bootstrap ${ENVIRONMENT} ${ROLE} || true
     sleep 5
     bold "Signing key on master"
-    lxc exec ${puppetmaster} -- $(which puppet) cert sign ${guest}.theclarkhome.com
+    lxc exec ${puppetmaster} -- $(dirname $(which puppet))/puppetserver ca sign --certname ${guest}.theclarkhome.com
+    lxc exec ${guest} -- apt -y install openssh-server
     sleep 2
     if [[ ${NETPLAN} ]]
     then 
-      lxc exec ${guest} apt install ifupdown net-tools
+      lxc exec ${guest} -- apt -y install ifupdown net-tools
     fi
     lxc exec ${guest} -- $(which puppet) agent --test
     ;;
@@ -192,7 +196,7 @@ $(grep	gateway /etc/network/interfaces)
     lxc exec ${guest} -- bash /tmp/puppetmaster_bootstrap
     if [[ ${NETPLAN} ]]
     then 
-      lxc exec ${guest} apt install ifupdown net-tools
+      lxc exec ${guest} -- apt -y install ifupdown net-tools
     fi
     ;;
   *)
@@ -202,8 +206,8 @@ $(grep	gateway /etc/network/interfaces)
   bold "Reboot guest"
   lxc restart ${guest} 
   sleep 15
-  # set up keys for backuppc
-  $(dirname $0)/setkeys ${guest}
+  bold NOT setting up keys for backuppc
+  #$(dirname $0)/setkeys ${guest}
 
 done
 
