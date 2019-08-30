@@ -1,4 +1,4 @@
-#/bin/bash
+#/bin/bash -x
 
 set -o nounset
 set -o pipefail
@@ -10,6 +10,7 @@ domain=theclarkhome.com
 ENVIRONMENT=production
 OS=
 ROLE=
+PUPPETDIR="/opt/puppetlabs/bin"
 
 #bold() { echo echo -e "\e[32m$*\e[0m"; }
 bold() { echo $(tput smso)$*$(tput rmso); }
@@ -56,7 +57,7 @@ GUESTS="$@"
 case ${OS} in
 linux)   user="root"
          ;;
-windows) user="administrator@theclarkhome.com"
+windows) user="administrator@${domain}"
          ;;
 *)       echo "Invalid value '${OS}' for OS" >&2;
          Usage
@@ -80,14 +81,14 @@ do
   windows) node=winrm://${certname}
            args="certname=${certname} --no-ssl"
            # Not sure why this is needed, but this seems to kick winrm into action!
-           bolt script run testconnection.ps1 --nodes ${node} --no-ssl --user ${user{ --password
+           bolt script run testconnection.ps1 --nodes ${node} --no-ssl --user ${user} --password
            ;;
   esac
 
   echo "bootstrap ${guest} with flags: ROLE=${ROLE}, OS=${OS} ENVIRONMENT=${ENVIRONMENT}"
 
   bold "Removing key on master"
-  lxc exec ${puppetmaster} -- $(which puppet) cert clean  ${guest}.${domain}
+  lxc exec ${puppetmaster} -- ${PUPPETDIR}/puppetserver ca clean  --certname ${guest}.${domain} || true
 
 #      --params "{ \
 #        \"master\":\"${puppetmaster}.${domain}\", \
@@ -105,7 +106,7 @@ do
 
   sleep 5
   bold "Signing key on master"
-  lxc exec ${puppetmaster} -- $(which puppet) cert sign ${guest}.theclarkhome.com
+  lxc exec ${puppetmaster} -- {PUPPETDIR}/puppetserver ca sign --certname ${guest}.${domain}
   sleep 2
 
   # allow time for dhcp and dns to catchup
