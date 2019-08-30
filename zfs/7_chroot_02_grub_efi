@@ -1,5 +1,5 @@
 #!/bin/bash
-. $(dirname $0)/conf
+. "${0%/*}/conf"
 
 [[ "${boot}" = "efi" ]] || exit 0
 
