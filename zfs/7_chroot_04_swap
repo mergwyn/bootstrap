@@ -1,7 +1,7 @@
 #!/bin/bash
 . $(dirname $0)/conf
 swap=/dev/zvol/${pool}/swap
-declare -i _mult=50 # percentage value of RAM to make swap
+declare -i _mult=100 # percentage value of RAM to make swap
 declare -i SIZE=0
 if [[ -e ${swap} ]]
 then
