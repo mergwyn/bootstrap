@@ -1,29 +1,27 @@
-#!/bin/bash
+#!/usr/bin/env bash
 . $(dirname $0)/conf
-swap=/dev/zvol/${pool}/swap
+_swap="/dev/zvol/${pool}/swap"
 declare -i _mult=100 # percentage value of RAM to make swap
 declare -i SIZE=0
-if [[ -e ${swap} ]]
+if [[ -e "${_swap}" ]]
 then
-	grep --silent $(readlink -f ${swap}) /proc/swaps && swapoff ${swap}
-	zfs destroy -r ${pool}/swap
+	grep --silent $(readlink -f "${_swap}") /proc/swaps && swapoff "${_swap}"
+	zfs destroy -r "${pool}"/swap
 fi
-SIZE=$(free --giga | awk '/^Mem:/{print $2}')
 
-
-SIZE=$(cat /proc/meminfo | grep MemTotal | awk '{print $2}')
-test -n ${SIZE}
+SIZE=$(grep MemTotal < /proc/meminfo | awk '{print $2}')
+test -n "${SIZE}"
 # convert from KB TO GB and apply multiplier
 SIZE=$((SIZE/1024/1024*_mult/100))
-zfs create -V ${SIZE}G -b $(getconf PAGESIZE) -o compression=zle \
+zfs create -V ${SIZE}G -b "$(getconf PAGESIZE)" -o compression=zle \
       -o logbias=throughput -o sync=always \
       -o primarycache=metadata -o secondarycache=none \
-      -o com.sun:auto-snapshot=false ${pool}/swap
+      -o com.sun:auto-snapshot=false "${pool}"/swap
 
 sleep 10
-mkswap /dev/zvol/${pool}/swap 
+mkswap "${_swap}"
 
-sed -e "\%/dev/zvol/${pool}/swap%d" -i /etc/fstab
+sed -e "\%${_swap}%d" -i /etc/fstab
 cat >> /etc/fstab <<!
-/dev/zvol/${pool}/swap	none			swap	defaults		0	0
+${_swap}	none			swap	defaults		0	0
 !

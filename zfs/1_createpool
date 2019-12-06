@@ -1,90 +1,100 @@
-#!/bin/bash
-. $(dirname $0)/conf
+#!/usr/bin/env bash
+here="${0%/*}"
+# shellcheck source=selectdisks
+source "${here}/selectdisks"
+# shellcheck source=conf
+source "${here}/conf"
 
-features="
-      -d -o feature@async_destroy=enabled 
-         -o feature@empty_bpobj=enabled 
-         -o feature@filesystem_limits=enabled 
-         -o feature@lz4_compress=enabled 
-         -o feature@spacemap_histogram=enabled 
-         -o feature@extensible_dataset=enabled 
-         -o feature@bookmarks=enabled 
-         -o feature@enabled_txg=enabled 
-         -o feature@embedded_data=enabled 
-         -o feature@large_blocks=enabled 
-"
-#features=
-sgdisk="echo sgdisk"
-sgdisk="sgdisk"
+declare -a _features
+_features=(
+-d
+-o "feature@async_destroy=enabled"
+-o "feature@empty_bpobj=enabled"
+-o "feature@filesystem_limits=enabled"
+-o "feature@lz4_compress=enabled"
+-o "feature@spacemap_histogram=enabled"
+-o "feature@extensible_dataset=enabled"
+-o "feature@bookmarks=enabled"
+-o "feature@enabled_txg=enabled"
+-o "feature@embedded_data=enabled"
+-o "feature@large_blocks=enabled"
+)
+
+declare -a _members
 for disk in "${DISKS[@]}"
 do
-      members+="${disk}${part} "
+  _members+=(${disk}${part})
 done
 
 zap_partition() 
 {
-	echo -n "about to zap all partitions on ${DISKS[@]} - are you sure? [Y/N]"
-	read answer
-	[[ "${answer}" != "Y" ]] && exit
-	for disk in "${DISKS[@]}"
-	do
-		${sgdisk} --zap-all ${disk}
-	done
+  echo -n "about to zap all partitions on ${DISKS[*]} - are you sure? [Y/N]"
+  read -r _answer
+  [[ "${_answer}" != "Y" ]] && exit
+  for disk in ${DISKS[*]}
+  do
+    ${sgdisk} --zap-all "${disk}"
+  done
 }
 
 mod_partition()
 {
-	for disk in "${DISKS[@]}"
-	do
-		${sgdisk} -t9:EF00 $disk
-	done
+  for disk in ${DISKS[*]}
+  do
+    ${sgdisk} -t9:EF00 "${disk}"
+  done
 }
+
 create_partition()
 {
-	for disk in "${DISKS[@]}"
-	do
-		if [[ "${boot}" = "efi" ]]
-		then
-			#Run this for UEFI booting (for use now or in the future):
-			${sgdisk} -n9:1M:+512M     -t9:EF00 $disk
-		else
-			#Run this if you need legacy (BIOS) booting:
-			#${sgdisk} -g -a1 -n2:34:2047  -t2:EF02 $disk
-			${sgdisk} -a1 -n2:34:2047  -t2:EF02 $disk
+  for disk in ${DISKS[*]}
+  do
+    if [[ "${boot}" = "efi" ]]
+    then
+      #Run this for UEFI booting (for use now or in the future):
+      ${sgdisk} -n9:1M:+512M     -t9:EF00 "${disk}"
+    else
+      #Run this if you need legacy (BIOS) booting:
+      #${sgdisk} -g -a1 -n2:34:2047  -t2:EF02 $disk
+      ${sgdisk} -a1 -n2:34:2047  -t2:EF02 "${disk}"
+    fi
 
-		fi
-
-		#Run these in all cases:
-		${sgdisk}     -n1:0:0      -t1:BF01 $disk
-
-	done
+    #Run these in all cases:
+    ${sgdisk}     -n1:0:0      -t1:BF01 "${disk}"
+  done
 }
+
 create_pool()
 {
-	zpool create -f -o ashift=12 \
-		-O atime=off \
-		-O canmount=off\
-		-O compression=lz4\
-		-O normalization=formD \
-		-O mountpoint=/\
-		-R /mnt ${features} \
-		${pool} $pooltype ${members}
+  zpool create \
+    -f \
+    -o ashift=12 \
+    -O atime=off \
+    -O canmount=off\
+    -O compression=lz4\
+    -O normalization=formD \
+    -O mountpoint=/\
+    -R /mnt "${_features[*]}" \
+    ${pool} $pooltype "${_members[*]}"
 }
 
 apt update
 apt install gdisk
 apt install zfsutils-linux
 case ${host} in
-test)	create_pool
-	;;
+test)
+  create_pool
+  ;;
 *)
-	zap_partition
-	case ${wholedisk} in
-	true)	create_pool
-		mod_partition;;
-	*)	create_partition
-		sleep 5
-		#create_pool;;
-	esac
-	;;
+  zap_partition
+  case ${wholedisk} in
+  true)
+    create_pool
+    mod_partition;;
+  *)
+    create_partition
+    sleep 5
+    #create_pool;;
+  esac
+  ;;
 esac

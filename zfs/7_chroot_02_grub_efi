@@ -1,38 +1,47 @@
 #!/bin/bash
-. "${0%/*}/conf"
+here="${0%/*}"
+# shellcheck source=selectdisks
+source "${here}/selectdisks"
+# shellcheck source=conf
+source "${here}/conf"
 
 [[ "${boot}" = "efi" ]] || exit 0
 
 apt-get install --yes  dosfstools
 apt install --yes grub-efi 
+
 [[ -d /boot/efi ]] || mkdir /boot/efi
 mountpoint -q /boot/efi && umount /boot/efi
+
 declare -i eficount=0
 sed -i -e '/PARTUUID=.*\/boot\/efi/d' /etc/fstab
-for disk in "${DISKS[@]}"
+for disk in ${DISKS[*]}
 do
-	mkdosfs ${mkdosfsargs} ${disk}${bootpart}
-	PARTUUID=$(blkid -s PARTUUID -o value ${disk}${bootpart}) 
-	echo PARTUUID=${PARTUUID} /boot/efi vfat nofail,x-systemd.device-timeout=1 0 1 >> /etc/fstab
-	systemctl daemon-reload
-	mount  ${disk}${bootpart} /boot/efi
-	grub-install --target=x86_64-efi --efi-directory=/boot/efi \
-	      --bootloader-id=ubuntu --recheck --no-floppy
-	grub-install --target=x86_64-efi ${disk}
+  ${sgdisk} -t9:EF00 "${disk}"
+  mkdosfs "${mkdosfsargs}" "${disk}${bootpart}"
+  PARTUUID=$(blkid -s PARTUUID -o value "${disk}${bootpart}") 
+  echo PARTUUID="${PARTUUID}" /boot/efi vfat nofail,x-systemd.device-timeout=1 0 1 >> /etc/fstab
+  systemctl daemon-reload
 
-        eficount+=1
-	[[ ${eficount} > 1 ]] && 
-		efibootmgr -c -g -d ${disk} -p ${efipart} -L "ubuntu-${eficount}" -l '\EFI\Ubuntu\grubx64.efi'
-	umount /boot/efi
+  mount  "${disk}${bootpart}" /boot/efi
+  grub-install --target=x86_64-efi --efi-directory=/boot/efi \
+        --bootloader-id=ubuntu --recheck --no-floppy
+  grub-install --target=x86_64-efi "${disk}"
+
+  eficount+=1
+  # if more than 1 disk, we need efibootmgr
+  [[ ${eficount} -gt 1 ]] && 
+    efibootmgr -c -g -d "${disk}" -p ${efipart} -L "ubuntu-${eficount}" -l '\EFI\Ubuntu\grubx64.efi'
+  umount /boot/efi
 done
 
-sed     -e '/^GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/aGRUB_CMDLINE_LINUX_DEFAULT=""' \
-	-e 's/^GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/#&/' \
-	-e 's/^GRUB_TIMEOUT/#&/' \
-	-e 's/^GRUB_HIDDEN_TIMEOUT/#&/' \
-	-i /etc/default/grub
+# Adjust grub defaults
+sed -e '/^GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/aGRUB_CMDLINE_LINUX_DEFAULT=""' \
+    -e 's/^GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/#&/' \
+    -e 's/^GRUB_TIMEOUT/#&/' \
+    -e 's/^GRUB_HIDDEN_TIMEOUT/#&/' \
+    -i /etc/default/grub
 
 grub-probe /
 update-initramfs -c -k all
 update-grub
-

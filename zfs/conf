@@ -1,66 +1,62 @@
 #!/bin/bash
-set -x -e
-host=${1}
-root=${host}-1
-pool=rpool
-dir=/mnt
-domain=theclarkhome.com
-version=xenial
-network=enp3s0
-BE=${pool}/ROOT/${root}
+set -e
+export host=${1}
+export root=${host}-1
+export pool=rpool
+export dir=/mnt
+export domain=theclarkhome.com
+export version=xenial
+export network=enp3s0
+export BE=${pool}/ROOT/${root}
 efipart=9
+sgdisk="echo sgdisk"
+export sgdisk="sgdisk"
 
 if [[ ! ${host} ]] 
 then
-	echo "host cannot be empty" >&2
-	exit 1
+  echo "host cannot be empty" >&2
+  exit 1
 fi
 
-case ${host} in
-foxtrot)
-	boot=efi
-	wholedisk=true
-        . $(dirname $0)/selectdisks
-	#disks="
-	#/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722461404 
-	#/dev/disk/by-id/ata-SanDisk_SSD_PLUS_120_GB_174505461706
-	#"
-	;;
-golf)
-	boot=efi
-	wholedisk=true
-        . $(dirname $0)/selectdisks
-	#disks="/dev/disk/by-id/ata-SanDisk_SDSSDA120G_164722459408"
-	;;
-test)
-	wholedisk=true
-	boot=efi
-	pool=testpool
-	DISKS=("/test/1.img")
-	;;
-esac
-ls -l ${DISKS}
+wholedisk=true
+boot=efi
+wholedisk=true
 
 declare -i count=${#DISKS[@]}
 
-echo $count
+case "${host}" in
+foxtrot|golf)
+  if [[ ${count} -eq 0 ]]
+  then
+    echo "Disks should be been selected" >&1
+    exit 1
+  fi
+  ;;
+test)
+  pool=testpool
+  DISKS=("/test/1.img")
+  ;;
+esac
+ls -l "${DISKS[@]}"
+
 
 case ${count} in
-1)	pooltype=;;
-2)	pooltype=mirror;;
+1)	export pooltype=;;
+2)	export pooltype=mirror;;
 *)	echo "need to set pooltype" >&2; exit 1;;
 esac
 
 case ${boot} in
-efi)	bootpart=-part${efipart}
-	mkdosfsargs="-n EFI";;
+efi)	export bootpart=-part${efipart}
+	export mkdosfsargs="-n EFI";;
 *)	echo "need to set boot type" >&2; exit 1;;
 esac
 
 case ${wholedisk} in
-true)	part=
+true)	export part=
 	;;
-*)	part=-part1
-	mkdosfsargs="-F32 -n EFI"
+*)	export part=-part1
+	export mkdosfsargs="-F32 -n EFI"
 	;;
 esac
+set -x

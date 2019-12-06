@@ -1,22 +1,24 @@
-#!/bin/bash
-. $(dirname $0)/conf
+#!/usr/bin/env bash
+here="${0%/*}"
+# shellcheck source=conf
+source "${here}/conf"
 
 # Included in the boot environment
 zfs create -o canmount=off -o com.sun:auto-snapshot=false	${pool}/ROOT
 zfs create -o canmount=noauto -o mountpoint=/ \
-	   -o com.sun:auto-snapshot=true			${BE}
-zfs mount ${BE}
+	   -o com.sun:auto-snapshot=true			"${BE}"
+zfs mount "${BE}"
 
 zfs create -o canmount=off -o setuid=off  -o exec=off \
-	   -o com.sun:auto-snapshot=false 			${BE}/var
-zfs create                                       		${BE}/var/cache
-zfs create                                              	${BE}/var/spool
-#zfs create  							${BE}/var/log
-#zfs create -o exec=on					  	${BE}/var/tmp
+	   -o com.sun:auto-snapshot=false 			"${BE}"/var
+zfs create                                       		"${BE}"/var/cache
+zfs create                                              	"${BE}"/var/spool
+#zfs create  							"${BE}"/var/log
+#zfs create -o exec=on					  	"${BE}"/var/tmp
 
 # Not in the BE
 #zfs create                 -o setuid=off              		${pool}/home
-zfs create -o mountpoint=/root                        		${pool}/root
+#zfs create -o mountpoint=/root                        		${pool}/root
 #zfs create -o com.sun:auto-snapshot=false -o exec=on 		${pool}/tmp
 
 zfs create -o canmount=off -o com.sun:auto-snapshot=false	${pool}/boot
@@ -30,4 +32,4 @@ zfs create                                       		${pool}/var/log
 zfs create -o exec=on                                   	${pool}/var/tmp
 zfs create -o mountpoint=/var/lib/nfs                 		${pool}/var/nfs
 
-zpool set bootfs=${BE} ${pool}
+zpool set bootfs="${BE}" ${pool}
