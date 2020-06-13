@@ -14,14 +14,16 @@ do
 	bravo)	"${me}"/lxc_bootstrap --role=domain_controller --privileged --static=192.168.11.22 "${guest}";;
 	echo)	"${me}"/lxc_bootstrap --role=puppet_master --privileged --puppet=master "${guest}";;
 	india)	"${me}"/lxc_bootstrap --role=iptv_server --media=yes --mac=00:16:3e:93:c6:21 --nfs "${guest}";;
-	papa)	"${me}"/lxc_bootstrap --role=internet_gateway --mac=00:16:3e:fc:2a:87 "${guest}";;
+	papa)	"${me}"/lxc_bootstrap --role=internet_gateway --mac=00:16:3e:fc:2a:87 --version=focal "${guest}";;
 	romeo)	"${me}"/lxc_bootstrap --role=router --privileged --mac=00:16:3e:fb:dc:5e --media=yes "${guest}";;
 	tango)	"${me}"/lxc_bootstrap --role=media_server --privileged --nfs --net --home=yes --media=yes --gpu "${guest}";;
+	delta)	"${me}"/lxc_bootstrap --role=development --src=yes --version=focal --boot=0 "${guest}";;
 	# testing
 	lima)	"${me}"/lxc_bootstrap --boot=0 --nesting=yes --privileged "${guest}";;
 	kilo)	"${me}"/lxc_bootstrap --boot=0 --nesting=yes "${guest}";;
 	sierra)	"${me}"/lxc_bootstrap --role=domain_controller --environment=development --boot=0 "${guest}";;
-	yankee)	"${me}"/lxc_bootstrap --boot=0 --environment=development "${guest}";;
+	november) "${me}"/lxc_bootstrap --role=minimal_server --boot=0 --environment=development "${guest}";;
+	yankee)	"${me}"/lxc_bootstrap --role=internet_gateway --boot=0 --environment=development --version=focal "${guest}";;
 	*)	"${me}"/lxc_bootstrap "${guest}";;
 	esac
 done
