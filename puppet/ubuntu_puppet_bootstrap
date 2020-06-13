@@ -1,6 +1,6 @@
 #/bin/bash
 . /etc/lsb-release
-_version=${DISTRIB_CODENAME}
+_version=$(lsb_release -sc)
 
 ROLE=${2}
 
