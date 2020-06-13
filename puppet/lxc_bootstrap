@@ -29,7 +29,7 @@ ROLE=
 SIZE=20GB
 
 #bold() { echo echo -e "\e[32m$*\e[0m"; }
-bold() { echo $(tput smso)$*$(tput rmso); }
+bold() { echo "$(tput smso)$*$(tput rmso)"; }
 
 case $host in
   foxtrot)  POOL=array
@@ -99,14 +99,14 @@ done
 
 [[ $# -lt 1 ]] && Usage
 
-GUESTS="$@"
+GUESTS=($@)
 
-for guest in "${GUESTS}"
+for guest in "${GUESTS[@]}"
 do
   echo "Create ${guest} with flags: ROLE=${ROLE}, ARCH=${ARCH}, PUPPET=${PUPPET}, MNTHOME=${MNTHOME} MNTPUBLIC=${MNTPUBLIC} MNTMEDIA=${MNTMEDIA} NESTING=${NESTING} nfs=${NFS} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL}"
 
   VERSION=images:ubuntu/${OSVERSION}/${ARCH}
-  lxc init ${VERSION} ${guest} || true
+  lxc init "${VERSION}" "${guest}" || true
 
   sleep 2
   if [[ "${NFS}" = "yes" ]] 
@@ -116,8 +116,8 @@ do
   fi
   [[ "${PRIVMODE}" = "yes" ]] && lxc config set ${guest} security.privileged true
   [[ "${NESTING}" = "yes" ]] && lxc config set ${guest} security.nesting true
-  [[ "${RAW}" ]] && lxc config set ${guest} raw.lxc "${RAW}"
-  [[ "${MAC}" ]] && lxc config set ${guest} volatile.eth0.hwaddr ${MAC}
+  [[ "${RAW}" ]] && lxc config set "${guest}" raw.lxc "${RAW}"
+  [[ "${MAC}" ]] && lxc config set "${guest}" volatile.eth0.hwaddr "${MAC}"
 
   [[ "${GPU}" = "yes" ]] && \
     lxc config device add ${guest} gpu gpu gid=44
@@ -132,8 +132,8 @@ do
     lxc config device add ${guest} src disk path=/usr/src source=/usr/src 
   [[ "${MNTNET}" = "yes" ]] && \
     lxc config device add ${guest} net disk path=/net source=/net 
-  lxc config device add ${guest} root disk path=/ pool=${POOL} size=${SIZE}
-  lxc config set ${guest} boot.autostart ${BOOT}
+  lxc config device add ${guest} root disk path=/ pool=${POOL} size="${SIZE}"
+  lxc config set ${guest} boot.autostart "${BOOT}"
 
   #if [[ ${NETPLAN} ]]
   #then 
@@ -176,23 +176,23 @@ $(grep	gateway /etc/network/interfaces)
     #echo $(dirname $0)/task_bootstrap --role=${ROLE} --os=linux --env=${ENVIRONMENT} ${guest}
     #read
     #$(dirname $0)/task_bootstrap --role=${ROLE} --os=linux --env=${ENVIRONMENT} ${guest}
-    lxc exec ${puppetmaster} --env LANG=${LANG} -- $(dirname $(which puppet))/puppetserver ca clean --certname  ${guest}.${domain}
-    lxc file push $(dirname $0)/ubuntu_puppet_bootstrap ${guest}///tmp/
-    lxc exec ${guest} -- bash /tmp/ubuntu_puppet_bootstrap ${ENVIRONMENT} ${ROLE} || true
+    lxc exec ${puppetmaster} --env LANG="${LANG}" -- "$(dirname "$(which puppet)")"/puppetserver ca clean --certname  ${guest}.${domain}
+    lxc file push "$(dirname "$0")"/ubuntu_puppet_bootstrap ${guest}///tmp/
+    lxc exec ${guest} -- bash /tmp/ubuntu_puppet_bootstrap "${ENVIRONMENT}" "${ROLE}" || true
     sleep 5
     bold "Signing key on master"
-    lxc exec ${puppetmaster} -- $(dirname $(which puppet))/puppetserver ca sign --certname ${guest}.theclarkhome.com
+    lxc exec ${puppetmaster} -- "$(dirname "$(which puppet)")"/puppetserver ca sign --certname ${guest}.theclarkhome.com
     lxc exec ${guest} -- apt -y install openssh-server
     sleep 2
-    if [[ ${NETPLAN} ]]
-    then 
-      lxc exec ${guest} -- apt -y install ifupdown net-tools
-    fi
-    lxc exec ${guest} -- $(which puppet) agent --test
+    #if [[ ${NETPLAN} ]]
+    #then 
+    #  lxc exec ${guest} -- apt -y install ifupdown net-tools
+    #fi
+    lxc exec ${guest} -- "$(which puppet)" agent --test
     ;;
   "master")
     bold "Setting up puppet"
-    lxc file push $(dirname $0)/puppetmaster_bootstrap ${guest}///tmp/
+    lxc file push "$(dirname "$0")"/puppetmaster_bootstrap ${guest}///tmp/
     lxc exec ${guest} -- bash /tmp/puppetmaster_bootstrap
     if [[ ${NETPLAN} ]]
     then 
@@ -210,5 +210,3 @@ $(grep	gateway /etc/network/interfaces)
   #$(dirname $0)/setkeys ${guest}
 
 done
-
-# vim: sw=2:ai:nu expandtab
