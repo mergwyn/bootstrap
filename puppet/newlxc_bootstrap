@@ -1,37 +1,20 @@
 #!/bin/bash
 set -o nounset
 set -o pipefail
-#set -o errexit
+set -o errexit
 
 . /etc/lsb-release
 ARCH=amd64
-BOOT=1
-domain=theclarkhome.com
+domain=$(hostname -d)
 ENVIRONMENT=production
-GUESTS=
-GPU=no
+guests=
 host=$(hostname)
 IP=
-MAC=
-NESTING=no
 NETPLAN=disable_netplan
-NFS=no
 OSVERSION=${DISTRIB_CODENAME}
-PRIVMODE=no
 PUPPET=agent
-RAW=
 ROLE=
 SIZE=20GB
-
-declare -A _mountconfig
-_mountconfig["home"]="disk path=/home source=/home recursive=true"
-_mountconfig["media"]="disk path=/srv/media source=/srv/media"
-_mountconfig["public"]="disk path=/srv/public source=/srv/public"
-_mountconfig["src"]="disk path=/usr/src source=/usr/src"
-_mountconfig["net"]="disk path=/net source=/net"
-
-#bold() { echo echo -e "\e[32m$*\e[0m"; }
-bold() { echo "$(tput smso)$*$(tput rmso)"; }
 
 case $host in
 foxtrot)  POOL=array
@@ -41,6 +24,20 @@ foxtrot)  POOL=array
           puppetmaster=foxtrot:echo
           ;;
 esac
+
+declare -A _configs _devices _mountconfig
+
+_configs['boot']="boot.autostart 1"
+_devices['root']="root disk path=/ pool=${POOL} size=${SIZE}"
+
+_mountconfig['home']="disk path=/home source=/home recursive=true"
+_mountconfig['media']="disk path=/srv/media source=/srv/media"
+_mountconfig['public']="disk path=/srv/public source=/srv/public"
+_mountconfig['src']="disk path=/usr/src source=/usr/src"
+_mountconfig['net']="disk path=/net source=/net"
+
+#bold() { echo echo -e "\e[32m$*\e[0m"; }
+bold() { echo "$(tput smso)$*$(tput rmso)"; }
 
 Usage()
 {
@@ -65,24 +62,29 @@ EOF
   exit 1
 }
 
-params="$(getopt -o a:p: --long arch:,boot:,environment:,gpu,mac:,mounts:,nesting:,nfs,privileged,puppet:,raw:,role:,size:,static:,version: --name "$0" -- "$@")"
+params="$(getopt -o h: --long arch:,boot:,environment:,gpu,mac:,mounts:,nesting:,nfs,privileged,puppet:,raw:,role:,size:,static:,version: --name "$0" -- "$@")"
 eval set -- "$params"
 
 while true
 do
   case "$1" in
-    -a|--arch)	        ARCH=$2; shift 2 ;;
-    --boot)		BOOT=$2; shift 2 ;;
+    --arch)	        ARCH=$2; shift 2 ;;
+    --boot)		_configs['boot']="boot.autostart ${2}"; shift 2 ;;
     --environment)	ENVIRONMENT=$2; shift 2 ;;
+    --gpu)      	_devices['gpu']="gpu gpu gid=44"; shift;;
     --mounts)	        IFS=',' read -r -a MOUNTS <<< "$2"; shift 2 ;;
-    --mac)	        MAC=$2; shift 2 ;;
-    --nesting)	        NESTING=$2; shift 2 ;;
-    --gpu)      	GPU=yes; shift ;;
-    --nfs)      	NFS=yes; shift ;;
-    --privileged)	PRIVMODE=yes; shift ;;
-    -p|--puppet)	PUPPET=$2; shift 2 ;;
-    --size)		SIZE=$2; shift 2 ;;
-    --raw)		RAW=$2; shift 2 ;;
+    --mac)	        _configs['mac']="volatile.eth0.hwaddr ${2}"; shift 2;;
+    --nesting)	        _configs['nesting']="security.nesting ${2}"; shift 2;;
+    --nfs)
+      _configs['nfs']='raw.apparmor "mount fstype=nfs,"'
+      _configs['privileged']="security.privileged true"
+      shift;;
+    --privileged)	_configs['privileged']="security.privileged true"; shift;;
+    --puppet)    	PUPPET=$2; shift 2 ;;
+    --size)
+      _devices['root']="root disk path=/ pool=${POOL} size=${2}"
+      shift 2;;
+    --raw)              _configs['raw']="raw.lxc ${2}"; shift 2;;
     --role)		ROLE=$2; shift 2 ;;
     --static)	        IP=$2; shift 2 ;;
     --version)	        OSVERSION=$2; shift 2 ;;
@@ -94,39 +96,30 @@ done
 
 [[ $# -lt 1 ]] && Usage
 
-GUESTS=($@)
+guests=($@)
 
-for guest in "${GUESTS[@]}"
+for guest in "${guests[@]}"
 do
-  echo "Create ${guest} with flags: ROLE=${ROLE}, ARCH=${ARCH}, PUPPET=${PUPPET}, NESTING=${NESTING} nfs=${NFS} privileged=${PRIVMODE} SIZE=${SIZE} IP=${IP} BOOT=${BOOT} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL} MOUNTS=${MOUNTS[*]}"
+  bold "Create ${guest} with flags:"
+  echo "ROLE=${ROLE}, ARCH=${ARCH}, PUPPET=${PUPPET}, IP=${IP} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL}"
+  for MOUNT in "${MOUNTS[@]}"
+  do
+    _devices["${MOUNT}"]="${MOUNT} ${_mountconfig[${MOUNT}]}"
+  done
+  #bold "Configs:"; printf '%s\n' "${_configs[@]}"
+  #bold "Devices:"; printf '%s\n' "${_devices[@]}"
 
   VERSION=images:ubuntu/${OSVERSION}/cloud/${ARCH}
   lxc init "${VERSION}" "${guest}" || true
 
-  sleep 2
-
-  if [[ "${NFS}" = "yes" ]] 
-  then
-    PRIVMODE=yes
-    lxc config set ${guest} raw.apparmor "mount fstype=nfs,"
-  fi
-
-  setconfig() { lxc config set "${guest}" "$@" ; }
-
-  [[ "${PRIVMODE}" = "yes" ]] && setconfig security.privileged true
-  [[ "${NESTING}" = "yes" ]] && setconfig security.nesting true
-  [[ "${RAW}" ]] && setconfig raw.lxc "${RAW}"
-  [[ "${MAC}" ]] && setconfig volatile.eth0.hwaddr "${MAC}"
-  setconfig boot.autostart "${BOOT}"
-
-  adddevice() { lxc config device add "${guest}" "$@" ; }
-
-  adddevice root disk path=/ pool=${POOL} size="${SIZE}"
-  [[ "${GPU}" = "yes" ]] && adddevice gpu gpu gid=44
-
-  for MOUNT in "${MOUNTS[@]}"
+  for config in "${!_configs[@]}"
   do
-    adddevice "${MOUNT}" "${_mountconfig[${MOUNT}]}"
+    lxc config set "${guest}" ${_configs[${config}]}
+  done
+
+  for device in "${!_devices[@]}"
+  do
+    lxc config device add "${guest}" ${_devices[${device}]}
   done
 
   # Now set cloud-init to install puppet agent
@@ -157,13 +150,14 @@ puppet:
 
 packages:
   - openssh-server
-power_state:
-  delay: now
-  mode: reboot
-  message: Rebooting....
-  timeout: 30
-  condition: True
 !
+#power_state:
+#  delay: now
+#  mode: reboot
+#  message: Rebooting....
+#  timeout: 30
+#  condition: True
+
   lxc config show "${guest}"
 
   if [ "${IP}" != "" ]
@@ -183,11 +177,12 @@ network:
     sleep 2
   fi
   bold "Cleaning puppet cert"
-  lxc exec ${puppetmaster} --env LANG="${LANG}" -- "$(dirname "$(which puppet)")"/puppetserver ca clean --certname  ${guest}.${domain}
+  lxc exec ${puppetmaster} --env LANG="${LANG}" -- "$(dirname "$(which puppet)")"/puppetserver ca clean --certname "${guest}.${domain}" || true
   bold "Starting ${guest}"
   lxc start ${guest}
   sleep 1
   lxc exec "${guest}" -- cloud-init status --wait --long
+  bold "Cloud-init complete, puppet agent run should be executing on ${guest}"
 
   case "${PUPPET}" in
   "agent")
