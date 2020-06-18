@@ -16,7 +16,7 @@ OSX_VERSION=$(sw_vers | grep -i productversion| awk '{print $2}' | cut -f1,2 -d'
 # Modifiable variables, please set them via environmental variables.
 #--------------------------------------------------------------------
 FACTER_PACKAGE_URL=${FACTER_PACKAGE_URL:-"http://downloads.puppetlabs.com/mac/facter-latest.dmg"}
-PUPPET_PACKAGE_URL=${PUPPET_PACKAGE_URL:-"http://downloads.puppetlabs.com/mac/$OSX_VERSION/PC1/x86_64/puppet-agent-latest.dmg"}
+PUPPET_PACKAGE_URL=${PUPPET_PACKAGE_URL:-"http://downloads.puppetlabs.com/mac/$OSX_VERSION/PC1/x86_64/puppet6-agent-latest.dmg"}
 
 #--------------------------------------------------------------------
 # NO TUNABLES BELOW THIS POINT.
