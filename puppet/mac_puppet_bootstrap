@@ -65,3 +65,6 @@ install_dmg "Facter" "${FACTER_PACKAGE_URL}"
 defaults write /Library/Preferences/com.apple.loginwindow Hide500Users -bool YES
 
 echo "finished installing puppet..."
+
+echo TODO: need to configure server
+echo TODO: need to configure pp_role
