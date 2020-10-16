@@ -13,12 +13,14 @@ do
 	alpha)	  "${me}"/lxc_bootstrap --role=domain_controller --privileged --static="192.168.11.21" "${guest}";;
 	bravo)	  "${me}"/lxc_bootstrap --role=domain_controller --privileged --static="192.168.11.22" "${guest}";;
 	echo)	  "${me}"/lxc_bootstrap --role=puppet_master --privileged --puppet="master" "${guest}";;
-	juliet)   "${me}"/lxc_bootstrap --role=router --vm --mac="00:16:3e:8d:d3:af" --environment=development --boot=false "${guest}";;
+	#juliet)   "${me}"/lxc_bootstrap --role=router --vm --mac="00:16:3e:8d:d3:af" --environment=development --boot=false "${guest}";;
+	juliet)   bash -x "${me}"/lxc_openwrt   "${guest}";;
 	india)	  "${me}"/lxc_bootstrap --role=iptv_server --mounts="media" --mac="00:16:3e:93:c6:21" --nfs "${guest}";;
 	papa)	  "${me}"/lxc_bootstrap --role=internet_gateway --mac="00:16:3e:fc:2a:87" "${guest}";;
 	romeo)	  "${me}"/lxc_bootstrap --role=router --privileged --mac="00:16:3e:fb:dc:5e" --mounts="media" "${guest}";;
 	tango)	  "${me}"/lxc_bootstrap --role=media_server --privileged --nfs --mounts="net,home,media" --gpu "${guest}";;
 	delta)	  "${me}"/lxc_bootstrap --role=development --mounts="src" --boot=false "${guest}";;
+	victor)	  bash -x "${me}"/lxc_openwrt   "${guest}";;
 	# testing
 	lima)	  "${me}"/lxc_bootstrap --boot=false --nesting=yes --privileged "${guest}";;
 	kilo)	  "${me}"/lxc_bootstrap --role=generic_server --environment=development --boot=false "${guest}";;

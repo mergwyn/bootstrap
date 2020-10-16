@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+# Script to initialise openwrt for nordvpn
+set -o nounset
+set -o pipefail
+set -o errexit
+
+readonly openvpn=/etc/openvpn
+readonly api="https://api.nordvpn.com/v1/servers/recommendations"
+
+
+getsecret() {
+  eyaml decrypt -e /usr/src/control-repo/data/secrets.yaml |
+    sed -n -e "/secrets::$1:/"'s/^.*PKCS7\[\(.*\)\]!/\1/p'
+}
+
+install_packages() {
+  local -a packages
+  packages=(
+    bash
+    jq
+    curl
+    coreutils-shuf
+    vpn-policy-routing
+    luci-app-vpn-policy-routing
+  )
+
+  ${exec} opkg update
+  ${exec} opkg install "${packages[@]}" 
+}
+
+# Install openvpn and luci module
+install_openvpn() {
+  local -a packages
+  packages=(
+    openvpn-openssl
+    ip-full
+    luci-app-openvpn
+  )
+  ${exec} opkg update
+  ${exec} opkg install "${packages[@]}" 
+
+  ${exec} /etc/init.d/openvpn enable
+}
+
+# Create a file for authentication
+configure_openvpn() {
+  {
+    getsecret nordvpn::user
+    getsecret nordvpn::password
+  } | ${exec} sh -c "cat > $openvpn/secret" 
+
+  ${exec} sh -c "cat > $openvpn/nordvpn.conf" <<!
+config ${openvpn}/fastest.server
+auth-user-pass ${openvpn}/secret
+!
+
+  ${exec} uci set openvpn.nordvpn=openvpn
+  ${exec} uci set openvpn.nordvpn.enabled='1'
+  ${exec} uci set openvpn.nordvpn.config="${openvpn}/nordvpn.conf"
+  ${exec} uci commit openvpn
+
+}
+
+nordvpn_server() {
+
+  recommended=$(curl --silent "${api}" | jq --raw-output 'limit(1;.[]) | .hostname')
+  config=${recommended%%.*}.nordvpn.com.udp.ovpn
+
+  [[ -f /tmp/"${config}" ]] ||
+    curl -qs "https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/$config" -o /tmp/"${config}"
+  ${exec} mkdir $openvpn/config
+  lxc file push "/tmp/$config" "${guest}/${openvpn}/config/"
+  ${exec} sh -c "cat > $openvpn/fastest.server" <<!
+config ${openvpn}/config/$config
+!
+}
+
+network_base() {
+  ${exec} uci set network.lan=interface
+  ${exec} uci set network.lan.ifname='eth0'
+  ${exec} uci set network.lan.proto='static'
+  ${exec} uci set network.lan.netmask='255.255.255.0'
+  ${exec} uci set network.lan.ip6assign='60'
+  ${exec} uci set network.lan.ipaddr='192.168.11.251'
+
+  ${exec} uci set network.wan=interface
+  ${exec} uci set network.wan.ifname='eth1'
+  ${exec} uci set network.wan.proto='dhcp'
+
+  ${exec} uci set network.wan.ifname='eth1'
+
+# configure the DNS servers:
+  ${exec} uci set network.wan.peerdns='0'
+  ${exec} uci del network.wan.dns || true
+  ${exec} uci add_list network.wan.dns='103.86.96.100'
+  ${exec} uci add_list network.wan.dns='103.86.99.100'
+
+  ${exec} uci set 'network.lan.ipv6=off'
+  ${exec} uci set 'network.wan.ipv6=off'
+
+  ${exec} uci commit network
+
+  ${exec} uci set dhcp.@dnsmasq[0].domain='theclarkhome.com'
+  ${exec} uci set dhcp.@dnsmasq[0].local='/theclarkhome.com/192.168.11.21'
+  ${exec} uci del dhcp.@dnsmasq[0].server || true
+  ${exec} uci add_list dhcp.@dnsmasq[0].server='/theclarkhome.com/192.168.11.22'
+  ${exec} uci add_list dhcp.@dnsmasq[0].server='103.86.96.100'
+  ${exec} uci add_list dhcp.@dnsmasq[0].server='103.86.99.100'
+  ${exec} uci set dhcp.@dnsmasq[0].cachesize='0'
+  ${exec} uci del dhcp.@dnsmasq[0].rebind_domain || true
+  ${exec} uci add_list dhcp.@dnsmasq[0].rebind_domain='theclarkhome.com'
+  ${exec} uci add_list dhcp.@dnsmasq[0].rebind_domain='bbc.co.uk'
+  ${exec} uci add_list dhcp.@dnsmasq[0].rebind_domain='plex.direct'
+
+  ${exec} uci set dhcp.lan.ignore='1'
+  ${exec} uci set dhcp.wan.ignore='1'
+
+  ${exec} uci set 'dhcp.lan.dhcpv6=disabled'
+  ${exec} /etc/init.d/odhcpd disable
+
+  ${exec} uci commit dhcp
+  ${exec} /etc/init.d/dnsmasq restart
+
+  sleep 15
+}
+
+network_openvpn() {
+  ${exec} uci set network.nordvpntun=interface
+  ${exec} uci set network.nordvpntun.proto='none'
+  ${exec} uci set network.nordvpntun.ifname='tun0'
+
+  ${exec} uci commit network
+}
+
+# Create a new firewall zone and add a forwarding rule from LAN to VPN:
+vpn_firewall() {
+  ${exec} uci add firewall zone
+  ${exec} uci set firewall.@zone[-1].name='vpnfirewall'
+  ${exec} uci set firewall.@zone[-1].input='REJECT'
+  ${exec} uci set firewall.@zone[-1].output='ACCEPT'
+  ${exec} uci set firewall.@zone[-1].forward='REJECT'
+  ${exec} uci set firewall.@zone[-1].masq='1'
+  ${exec} uci set firewall.@zone[-1].mtu_fix='1'
+  ${exec} uci add_list firewall.@zone[-1].network='nordvpntun'
+  ${exec} uci add firewall forwarding
+  ${exec} uci set firewall.@forwarding[-1].src='lan'
+  ${exec} uci set firewall.@forwarding[-1].dest='vpnfirewall'
+
+  ${exec} uci add firewall redirect
+  ${exec} uci set firewall.@redirect[-1].dest_port='32400'
+  ${exec} uci set firewall.@redirect[-1].src='wan'
+  ${exec} uci set firewall.@redirect[-1].name='Plex'
+  ${exec} uci set firewall.@redirect[-1].src_dport='32400'
+  ${exec} uci set firewall.@redirect[-1].target='DNAT'
+  ${exec} uci set firewall.@redirect[-1].dest='lan'
+
+  ${exec} uci commit firewall
+
+}
+
+vpn_prevent_leak() {
+  ${exec} sh -c "cat > /etc/firewall.user" <<!
+# This file is interpreted as a shell script.
+# Put your custom iptables rules here, and they will be executed with each firewall (re-)start
+# Internal uci firewall chains are flushed and recreated on reload, so
+# put custom rules into the root chains, e.g. INPUT or FORWARD, or into the
+# special user chains, e.g. input_wan_rule or postrouting_lan_rule.
+
+if (! ip a s tun0 up) && (! iptables -C forwarding_rule -j REJECT); then
+       iptables -I forwarding_rule -j REJECT
+fi
+!
+
+  ${exec} sh -c "cat > /etc/hotplug.d/iface/99-prevent-leak" <<!
+#!/bin/sh
+if [ "\$ACTION" = ifup ] && (ip a s tun0 up) && (iptables -C forwarding_rule -j REJECT); then
+       iptables -D forwarding_rule -j REJECT
+fi
+if [ "\$ACTION" = ifdown ] && (! ip a s tun0 up) && (! iptables -C forwarding_rule -j REJECT); then
+       iptables -I forwarding_rule -j REJECT
+fi
+!
+}
+
+create_container() {
+  local password
+  lxc init images:openwrt/19.07 "${guest}"
+
+  lxc config device add "${guest}" eth1 nic name=eth1 nictype=bridged parent=lxdbr0
+
+  lxc start "${guest}"
+  password=$(getsecret openwrt)
+  printf '%s\n%s' "${password}" "${password}" | lxc exec "${guest}" -- passwd
+}
+
+[[ $# -lt 1 ]] && Usage
+
+guests=("$@")
+
+for guest in "${guests[@]}"; do
+  exec="lxc exec ${guest} --"
+  create_container
+  network_base
+  install_packages
+
+  install_openvpn
+  configure_openvpn
+  nordvpn_server
+  network_openvpn
+  vpn_firewall
+  vpn_prevent_leak
+
+  ${exec} /etc/init.d/openvpn start
+  sleep 5
+
+  lxc restart "${guest}"
+done
