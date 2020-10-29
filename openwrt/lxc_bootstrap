@@ -6,11 +6,19 @@ set -o errexit
 
 readonly openvpn=/etc/openvpn
 readonly api="https://api.nordvpn.com/v1/servers/recommendations"
+_updated=
 
 
 getsecret() {
   eyaml decrypt -e /usr/src/control-repo/data/secrets.yaml |
     sed -n -e "/secrets::$1:/"'s/^.*PKCS7\[\(.*\)\]!/\1/p'
+}
+
+opkg_update() {
+  if [[ -z "${_updated}" ]] ; then
+    ${exec} opkg update
+    _updated=true
+  fi
 }
 
 install_packages() {
@@ -20,11 +28,9 @@ install_packages() {
     jq
     curl
     coreutils-shuf
-    vpn-policy-routing
-    luci-app-vpn-policy-routing
   )
 
-  ${exec} opkg update
+  opkg_update
   ${exec} opkg install "${packages[@]}" 
 }
 
@@ -35,8 +41,11 @@ install_openvpn() {
     openvpn-openssl
     ip-full
     luci-app-openvpn
+    vpn-policy-routing
+    luci-app-vpn-policy-routing
+    luci-app-sqm
   )
-  ${exec} opkg update
+  opkg_update
   ${exec} opkg install "${packages[@]}" 
 
   ${exec} /etc/init.d/openvpn enable
@@ -106,10 +115,10 @@ network_base() {
   ${exec} uci add_list dhcp.@dnsmasq[0].server='/theclarkhome.com/192.168.11.22'
   ${exec} uci add_list dhcp.@dnsmasq[0].server='103.86.96.100'
   ${exec} uci add_list dhcp.@dnsmasq[0].server='103.86.99.100'
-  ${exec} uci set dhcp.@dnsmasq[0].cachesize='0'
+  #${exec} uci set dhcp.@dnsmasq[0].cachesize='0'
   ${exec} uci del dhcp.@dnsmasq[0].rebind_domain || true
   ${exec} uci add_list dhcp.@dnsmasq[0].rebind_domain='theclarkhome.com'
-  ${exec} uci add_list dhcp.@dnsmasq[0].rebind_domain='bbc.co.uk'
+  #${exec} uci add_list dhcp.@dnsmasq[0].rebind_domain='bbc.co.uk'
   ${exec} uci add_list dhcp.@dnsmasq[0].rebind_domain='plex.direct'
 
   ${exec} uci set dhcp.lan.ignore='1'
@@ -124,12 +133,42 @@ network_base() {
   sleep 15
 }
 
+network_sqm() {
+  WAN_NAME=$1
+  WAN_IFACE=$(${exec} uci get "network.${WAN_NAME}.ifname")
+  BW_DOWN='110'
+  BW_UP='9'
+
+  ${exec} uci del sqm.eth1 || true
+  ${exec} uci del sqm."${WAN_NAME}" || true
+
+  ${exec} uci set sqm."${WAN_NAME}"='queue'
+  ${exec} uci set sqm."${WAN_NAME}".interface="$WAN_IFACE"
+  ${exec} uci set sqm."${WAN_NAME}".download=$((BW_DOWN*1000*85/100))
+  ${exec} uci set sqm."${WAN_NAME}".upload=$((BW_UP*1000*85/100))
+  ${exec} uci set sqm."${WAN_NAME}".qdisc='cake'
+  ${exec} uci set sqm."${WAN_NAME}".script='piece_of_cake.qos'
+  ${exec} uci set sqm."${WAN_NAME}".linklayer='ethernet'
+  ${exec} uci set sqm."${WAN_NAME}".overhead='44'
+  ${exec} uci set sqm."${WAN_NAME}".qdisc_advanced='0' # Default '0'
+  ${exec} uci set sqm."${WAN_NAME}".debug_logging='1'
+  ${exec} uci set sqm."${WAN_NAME}".verbosity='5'
+  ${exec} uci set sqm."${WAN_NAME}".enabled='1'
+
+  ${exec} uci commit sqm
+
+  ${exec} /etc/init.d/sqm restart
+}
+
 network_openvpn() {
   ${exec} uci set network.nordvpntun=interface
   ${exec} uci set network.nordvpntun.proto='none'
   ${exec} uci set network.nordvpntun.ifname='tun0'
 
   ${exec} uci commit network
+
+  network_sqm nordvpntun
+  network_sqm wan
 }
 
 # Create a new firewall zone and add a forwarding rule from LAN to VPN:
@@ -155,6 +194,43 @@ vpn_firewall() {
   ${exec} uci set firewall.@redirect[-1].dest='lan'
 
   ${exec} uci commit firewall
+
+}
+
+
+vpn-policy-routing () {
+
+  ${exec} uci set vpn-policy-routing.@include[-1]=include
+  ${exec} uci set vpn-policy-routing.@include[-1].path='/etc/vpn-policy-routing.aws.user'
+  ${exec} uci set vpn-policy-routing.@include[-1]=include
+  ${exec} uci set vpn-policy-routing.@include[-1].path='/etc/vpn-policy-routing.netflix.user'
+  ${exec} uci set vpn-policy-routing.@include[-1].enabled='0'
+  ${exec} uci set vpn-policy-routing.@include[-1]=include
+  ${exec} uci set vpn-policy-routing.@include[-1].enabled='0'
+  ${exec} uci set vpn-policy-routing.@include[-1].path='/etc/vpn-policy-routing.bbc.user'
+  ${exec} uci set vpn-policy-routing.config=vpn-policy-routing
+  ${exec} uci set vpn-policy-routing.config.verbosity='2'
+  ${exec} uci set vpn-policy-routing.config.strict_enforcement='1'
+  ${exec} uci set vpn-policy-routing.config.src_ipset='0'
+  ${exec} uci set vpn-policy-routing.config.dest_ipset='dnsmasq.ipset'
+  ${exec} uci set vpn-policy-routing.config.ipv6_enabled='0'
+  ${exec} uci set vpn-policy-routing.config.supported_interface=''
+  ${exec} uci set vpn-policy-routing.config.ignored_interface='vpnserver wgserver'
+  ${exec} uci set vpn-policy-routing.config.boot_timeout='30'
+  ${exec} uci set vpn-policy-routing.config.iptables_rule_option='append'
+  ${exec} uci set vpn-policy-routing.config.iprule_enabled='0'
+  ${exec} uci set vpn-policy-routing.config.webui_enable_column='0'
+  ${exec} uci set vpn-policy-routing.config.webui_protocol_column='0'
+  ${exec} uci set vpn-policy-routing.config.webui_chain_column='0'
+  ${exec} uci set vpn-policy-routing.config.webui_sorting='1'
+  ${exec} uci set vpn-policy-routing.config.webui_supported_protocol='tcp' 'udp' 'tcp udp' 'icmp' 'all'
+  ${exec} uci set vpn-policy-routing.config.enabled='1'
+  ${exec} uci set vpn-policy-routing.@policy[-1]=policy
+  ${exec} uci set vpn-policy-routing.@policy[-1].interface='wan'
+  ${exec} uci set vpn-policy-routing.@policy[-1].dest_addr='bbc.co.uk bbc.com bbci.co.uk bbci.com'
+  ${exec} uci set vpn-policy-routing.@policy[-1].src_addr='192.168.11.0/24'
+
+  ${exec} uci commit vpn-policy-routing
 
 }
 
