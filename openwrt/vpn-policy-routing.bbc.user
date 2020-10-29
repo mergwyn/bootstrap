@@ -1,0 +1,47 @@
+#!/bin/sh
+# This file is heavily based on code from https://github.com/Xentrk/netflix-vpn-bypass/blob/master/IPSET_Netflix.sh
+TARGET_IPSET='wan'
+
+hosts="
+akamai.net
+bbc.com
+bbc.co.uk
+vod-sub-uk-live.bbcfmt.s.llnwi.net
+vod-thumb-uk-live.bbcfmt.s.llnwi.net
+llnwd.net
+llnwi.net
+r.bbci.co.uk
+bbci.co.uk.edgekey.net
+ichef.bbci.co.uk
+bbc.net.uk
+bbctvapps.co.uk
+loris.llnwd.net
+sitestat.com
+vs-dash-uk-live.akamaized.net
+ssl-bbcdotcom.2cnt.net
+"
+
+validate_ip() {
+  if expr "$1" : '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+getaddress() {
+  for addr in $* ; do
+    if validate_ip "$addr" ; then
+      echo "$addr"
+    else
+      getaddress $(dig a "$addr" +short)
+    fi
+  done
+}
+
+
+for host in ${hosts}; do
+  for address in $(getaddress $(dig a "${host}" +short)); do
+    echo add wan "$address"
+  done
+done | ipset restore -!
