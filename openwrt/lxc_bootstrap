@@ -28,6 +28,8 @@ install_packages() {
     jq
     curl
     coreutils-shuf
+    miniupnpd
+    snmpd
   )
 
   opkg_update
@@ -258,6 +260,13 @@ fi
 !
 }
 
+snmpd {
+  ${exec} uci set snmpd.@system[0]=system
+  ${exec} uci set snmpd.@system[0].sysLocation='undisclosed'
+  ${exec} uci set snmpd.@system[0].sysContact='OpenWRT router <openwrt@openwrt.org>'
+  ${exec} uci set snmpd.@system[0].sysName="${guest}"
+}
+
 create_container() {
   local password
   lxc init images:openwrt/19.07 "${guest}"
@@ -278,6 +287,7 @@ for guest in "${guests[@]}"; do
   create_container
   network_base
   install_packages
+  snmpd
 
   install_openvpn
   configure_openvpn
