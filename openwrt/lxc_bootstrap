@@ -54,7 +54,9 @@ install_packages() {
   ${exec} opkg install "${packages[@]}" 
 }
 
-# TODO VPNS?
+Usage() {
+  echo print usage
+}
 
 params="$(getopt -o h:,i: --long ip:,vpns:,help: --name "$0" -- "$@")"
 eval set -- "$params"
@@ -63,7 +65,9 @@ while true ; do
   case "$1" in
     -i|--ip)    guest_args+=("--ip=$2"); shift 2 ;;
     -h|--help)  Usage; exit 0 ;;
-    --vpns)     guest_args+=("--vpns=$2"); shift 2 ;;
+    --vpns)     guest_args+=("--vpns=$2")
+                IFS=',' read -r -a vpns <<< "$2"
+                shift 2 ;;
     --)         shift; break ;;
     *)          echo "Not implemented: $1" >&2;
                 exit 1 ;;
@@ -78,22 +82,31 @@ for guest in "${guests[@]}"; do
   exec="lxc exec ${guest} --"
   create_container
   sleep 5 # Allow guest time to get network up
+
   install_packages
 
 # Assemble files needed
   ${exec} mkdir ${openvpn}
-# TODO only setup required VPNS
-  configure_nordvpn
-  lxc file push ${here}/nord.auth ${guest}${openvpn}/
-  configure_privatvpn
-  lxc file push ${here}/privat.auth ${guest}${openvpn}/
-  lxc file push ${here}/vpn-policy-routing.plex.user ${guest}/etc/
-  lxc file push ${here}/bootstrap ${guest}/root/
-  lxc file push ${here}/nordvpnserver ${guest}/root/
+  for vpn in "${vpns[@]}" ; do
+    case $vpn in
+    nord)
+      configure_nordvpn
+      lxc file push ${here}/nord.auth ${guest}${openvpn}/
+      lxc file push ${here}/nordvpnserver ${guest}/root/
+      lxc file push ${here}/vpn-policy-routing.plex.user ${guest}/etc/
+      ;;
+    privat)
+      configure_privatvpn
+      lxc file push ${here}/privat.auth ${guest}${openvpn}/
+      ;;
+    esac
+  done
   lxc file push ${here}/dnsleaktest ${guest}/root/
+  lxc file push ${here}/bootstrap ${guest}/root/
 
-# Finally bootstrap
+# Finally run bootstrap
   ${exec} bash -x  /root/bootstrap "${guest_args[@]}"
   sleep 5
+
   lxc restart "${guest}"
 done
