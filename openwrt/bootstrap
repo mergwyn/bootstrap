@@ -1,21 +1,26 @@
 #!/usr/bin/env bash
 
-# Script to initialise openwrt for itordvpn
+# Script to initialise openwrt with vpn
 set -o nounset
 set -o pipefail
 set -o errexit
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+log_error () { printf "${RED}$*${NC}\n" ; }
+log_warn () { printf "${YELLOW}$*${NC}\n" ; }
+log_notice () { printf "${GREEN}$*${NC}\n" ; }
 
 readonly openvpn=/etc/openvpn
 readonly plex=192.168.11.42
 _updated=
 IP=
+sqm_enabled="sqm not enabled"
 declare -a vpns=(nord)
 
 Usage() {
-
-echo >&2 "
-  -i|--ip 
-  "
+  echo >&2 TODO print usage
 }
 
 params="$(getopt -o h:,i: --long ip:,help:,vpns: --name "$0" -- "$@")"
@@ -25,21 +30,20 @@ while true ; do
   case "$1" in
     -i|--ip)    IP="$2"; shift 2 ;;
     -h|--help)  Usage; exit 0 ;;
-    --vpns)     iFS=',' read -r -a vpns <<< "$2"; shift 2 ;;
+    --vpns)     IFS=',' read -r -a vpns <<< "$2"; shift 2 ;;
     --)         shift; break ;;
-    *)          echo "Not implemented: $1" >&2;
+    *)          log_error "Not implemented: $1" >&2;
+                Usage
                 exit 1 ;;
   esac
 done
-
-[[ $# -lt 1 ]] && Usage
-
 
 install_packages() {
   if [[ -z "${_updated}" ]] ; then
     opkg update
     _updated=true
   fi
+  log_notice Installing packages: "${@}" 
   opkg install "${@}" 
 }
 
@@ -50,8 +54,6 @@ base_packages() {
     jq
     curl
     coreutils-shuf
-    sqm-scripts
-    luci-app-sqm
   )
 
   install_packages "${packages[@]}" 
@@ -64,40 +66,34 @@ openvpn_packages() {
     openvpn-openssl
     ip-full
     luci-app-openvpn
-    bind-dig
-    dnsmasq-full
-    vpn-policy-routing
-    luci-app-vpn-policy-routing
   )
-  opkg remove dnsmasq
-  [[ -f /etc/config/dhcp ]] && rm /etc/config/dhcp
   install_packages "${packages[@]}" 
 
   /etc/init.d/openvpn enable
 }
 
 nordvpn() {
+  log_notice "Setting up nordvpn"
   /root/nordvpnserver # This downloads a full config
 
   cat <<! >$openvpn/nord.conf
-auth-user-pass '/etc/openvpn/nord.auth'
 config  "${openvpn}/fastest.server"
+auth-user-pass '/etc/openvpn/nord.auth'
 !
 
-  uci del openvpn.nord || true
+  uci -q del openvpn.nord || true
   uci set openvpn.nord=openvpn
-  uci set openvpn.nord.enabled='1'
   uci set openvpn.nord.config="${openvpn}/nord.conf"
+  uci set openvpn.nord.enabled='1'
   uci commit openvpn
 
-  network_nordvpn
+  network_vpn nord
 
 # TODO set up cron for server refresh
 }
 
 privatvpn() {
-# TODO complete config
-# TODO download from privat?
+  log_notice "Setting up privatvpn"
 
   install_packages unzip
 
@@ -106,23 +102,22 @@ privatvpn() {
 
 cat <<! >$openvpn/privat.conf
 remote uk-lon.pvdata.host 1195 udp
-auth-user-pass '/etc/openvpn/privat.auth'
-up ''
-down ''
 config  "${openvpn}/PrivateVPN-TUN/UDP/PrivateVPN-UK-London 1-TUN-1194.ovpn"
+auth-user-pass '/etc/openvpn/privat.auth'
 !
 
-  uci del openvpn.privat || true
+  uci -q del openvpn.privat || true
   uci set openvpn.privat=openvpn
   uci set openvpn.privat.config="$openvpn/privat.conf"
   uci set openvpn.privat.enabled='1'
 
   uci commit openvpn
 
-  network_privatvpn
+  network_vpn privat
 }
 
 network_base() {
+  log_notice "Setting up base network"
   if [[ $IP ]] ; then
     uci set network.lan=interface
     uci set network.lan.ifname='eth0'
@@ -142,7 +137,7 @@ network_base() {
 
 # configure the DNS servers:
   uci set network.wan.peerdns='0'
-  uci del network.wan.dns || true
+  uci -q del network.wan.dns || true
 # TODO what should DNS be for privat
   uci add_list network.wan.dns='103.86.96.100'
   uci add_list network.wan.dns='103.86.99.100'
@@ -155,12 +150,12 @@ network_base() {
   uci set dhcp.@dnsmasq[0].domain='theclarkhome.com'
   uci set dhcp.@dnsmasq[0].local='/theclarkhome.com/192.168.11.21'
   uci set dhcp.@dnsmasq[0].boguspriv='0'
-  uci del dhcp.@dnsmasq[0].server || true
+  uci -q del dhcp.@dnsmasq[0].server || true
   uci add_list dhcp.@dnsmasq[0].server='/theclarkhome.com/192.168.11.22'
   uci add_list dhcp.@dnsmasq[0].server='103.86.96.100'
   uci add_list dhcp.@dnsmasq[0].server='103.86.99.100'
   #uci set dhcp.@dnsmasq[0].cachesize='0'
-  uci del dhcp.@dnsmasq[0].rebind_domain || true
+  uci -q del dhcp.@dnsmasq[0].rebind_domain || true
   uci add_list dhcp.@dnsmasq[0].rebind_domain='theclarkhome.com'
   #uci add_list dhcp.@dnsmasq[0].rebind_domain='bbc.co.uk'
   uci add_list dhcp.@dnsmasq[0].rebind_domain='plex.direct'
@@ -178,58 +173,57 @@ network_base() {
 }
 
 network_sqm() {
-  WAN_NAME=$1
-  WAN_IFACE=$(uci get "network.${WAN_NAME}.ifname")
-  BW_DOWN='110'
-  BW_UP='9'
+  log_notice "Setting up sqm for $1"
+  wan_name=$1
+  if [[ "$sqm_enabled" = "sqm enabled" ]] ; then
+    local packages=(
+      sqm-scripts
+      luci-app-sqm
+    )
+    install_packages "${packages[@]}" 
 
-  uci del sqm.eth1 || true
-  uci del sqm."${WAN_NAME}" || true
+    wan_iface=$(uci get "network.${wan_name}.ifname")
+    BW_DOWN='110'
+    BW_UP='9'
 
-  uci set sqm."${WAN_NAME}"='queue'
-  uci set sqm."${WAN_NAME}".interface="$WAN_IFACE"
-  uci set sqm."${WAN_NAME}".download=$((BW_DOWN*1000*85/100))
-  uci set sqm."${WAN_NAME}".upload=$((BW_UP*1000*85/100))
-  uci set sqm."${WAN_NAME}".qdisc='cake'
-  uci set sqm."${WAN_NAME}".script='piece_of_cake.qos'
-  uci set sqm."${WAN_NAME}".linklayer='ethernet'
-  uci set sqm."${WAN_NAME}".overhead='44'
-  uci set sqm."${WAN_NAME}".qdisc_advanced='0' # Default '0'
-  uci set sqm."${WAN_NAME}".debug_logging='1'
-  uci set sqm."${WAN_NAME}".verbosity='5'
-  uci set sqm."${WAN_NAME}".enabled='1'
+    uci -q del sqm.eth1 || true
+    uci -q del sqm."${wan_name}" || true
 
-  uci commit sqm
+    uci set sqm."${wan_name}"='queue'
+    uci set sqm."${wan_name}".interface="$wan_iface"
+    uci set sqm."${wan_name}".download=$((BW_DOWN*1000*85/100))
+    uci set sqm."${wan_name}".upload=$((BW_UP*1000*85/100))
+    uci set sqm."${wan_name}".qdisc='cake'
+    uci set sqm."${wan_name}".script='piece_of_cake.qos'
+    uci set sqm."${wan_name}".linklayer='ethernet'
+    uci set sqm."${wan_name}".overhead='44'
+    uci set sqm."${wan_name}".qdisc_advanced='0' # Default '0'
+    uci set sqm."${wan_name}".debug_logging='1'
+    uci set sqm."${wan_name}".verbosity='5'
+    uci set sqm."${wan_name}".enabled='1'
 
-  /etc/init.d/sqm restart
+    uci commit sqm
+
+    /etc/init.d/sqm restart
+  else
+    log_warn SQM not enabled for $wan_name
+  fi
 }
 
-network_wan() {
-  network_sqm wan
-}
-
-network_nordvpn() {
-  uci set network.nordvpntun=interface
-  uci set network.nordvpntun.proto='none'
-  uci set network.nordvpntun.ifname='tun0'
+network_vpn() {
+  log_notice "Setting up vpn network for $1"
+  local name=$1
+  uci set network.${name}tun=interface
+  uci set network.${name}tun.proto='none'
+  uci set network.${name}tun.ifname='tun0'
 
   uci commit network
-
-  network_sqm nordvpntun
-}
-
-network_privatvpn() {
-  uci set network.privatvpntun=interface
-  uci set network.privatvpntun.proto='none'
-  uci set network.privatvpntun.ifname='tun0'
-
-  uci commit network
-
-  network_sqm privatvpntun
 }
 
 # Create a new firewall zone and add a forwarding rule from LAN to VPN:
 vpn_firewall() {
+  log_notice "Setting up firewall for $1"
+  local vpntun=$1
   uci add firewall zone
   uci set firewall.@zone[-1].name='vpnfirewall'
   uci set firewall.@zone[-1].input='REJECT'
@@ -237,8 +231,7 @@ vpn_firewall() {
   uci set firewall.@zone[-1].forward='REJECT'
   uci set firewall.@zone[-1].masq='1'
   uci set firewall.@zone[-1].mtu_fix='1'
-  uci add_list firewall.@zone[-1].network='nordvpntun'
-  echo TODO uci add_list firewall.@zone[-1].network='privatvpntun'
+  uci add_list firewall.@zone[-1].network=$vpntun
   uci add firewall forwarding
   uci set firewall.@forwarding[-1].src='lan'
   uci set firewall.@forwarding[-1].dest='vpnfirewall'
@@ -254,8 +247,17 @@ vpn_firewall() {
   uci commit firewall
 }
 
-
-vpn-policy-routing () {
+vpn_policy_routing () {
+  log_notice "Setting up vpn-policy-routing"
+  packages=(
+    bind-dig
+    dnsmasq-full
+    vpn-policy-routing
+    luci-app-vpn-policy-routing
+  )
+  opkg remove dnsmasq
+  [[ -f /etc/config/dhcp ]] && rm /etc/config/dhcp
+  install_packages "${packages[@]}" 
 
   uci set vpn-policy-routing.@include[-1]=include
   uci set vpn-policy-routing.@include[-1].path='/etc/vpn-policy-routing.aws.user'
@@ -317,6 +319,7 @@ upnpd() {
 }
 
 snmpd() {
+  log_notice "Setting up snmpd"
   install_packages snmpd
   uci set snmpd.@system[0]=system
   uci set snmpd.@system[0].sysLocation='undisclosed'
@@ -328,17 +331,28 @@ full_install() {
   network_base
   base_packages
   snmpd
-  network_wan
+  network_sqm wan
 
   openvpn_packages
 
+# TODO delete all vpns?
   for vpn in "${vpns[@]}"; do
-    ${vpn}vpn
+    case $vpn in
+      nord)
+        nordvpn
+        vpn_policy_routing
+        network_sqm nordtun
+        ;;
+      privat)
+        privatvpn
+        network_sqm privattun
+        ;;
+      *) 
+    esac
   done
 
-  vpn_firewall
+  vpn_firewall ${vpn}tun
   vpn_prevent_leak
-  vpn-policy-routing
 
   /etc/init.d/openvpn start
 }
