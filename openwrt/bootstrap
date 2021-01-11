@@ -1,44 +1,64 @@
 #!/usr/bin/env bash
 
-# Script to initialise openwrt for nordvpn
+# Script to initialise openwrt for itordvpn
 set -o nounset
 set -o pipefail
 set -o errexit
 
 readonly openvpn=/etc/openvpn
-readonly api="https://api.nordvpn.com/v1/servers/recommendations"
+readonly plex=192.168.11.42
 _updated=
+IP=
+declare -a vpns=(nord)
 
+Usage() {
 
-getsecret() {
-  eyaml decrypt -e /usr/src/control-repo/data/secrets.yaml |
-    sed -n -e "/secrets::$1:/"'s/^.*PKCS7\[\(.*\)\]!/\1/p'
+echo >&2 "
+  -i|--ip 
+  "
 }
 
-opkg_update() {
+params="$(getopt -o h:,i: --long ip:,help:,vpns: --name "$0" -- "$@")"
+eval set -- "$params"
+
+while true ; do
+  case "$1" in
+    -i|--ip)    IP="$2"; shift 2 ;;
+    -h|--help)  Usage; exit 0 ;;
+    --vpns)     iFS=',' read -r -a vpns <<< "$2"; shift 2 ;;
+    --)         shift; break ;;
+    *)          echo "Not implemented: $1" >&2;
+                exit 1 ;;
+  esac
+done
+
+[[ $# -lt 1 ]] && Usage
+
+
+install_packages() {
   if [[ -z "${_updated}" ]] ; then
     opkg update
     _updated=true
   fi
+  opkg install "${@}" 
 }
 
-install_packages() {
+base_packages() {
   local -a packages
   packages=(
     bash
     jq
     curl
     coreutils-shuf
-    miniupnpd
-    snmpd
+    sqm-scripts
+    luci-app-sqm
   )
 
-  opkg_update
-  opkg install "${packages[@]}" 
+  install_packages "${packages[@]}" 
 }
 
 # Install openvpn and luci module
-install_openvpn() {
+openvpn_packages() {
   local -a packages
   packages=(
     openvpn-openssl
@@ -48,64 +68,82 @@ install_openvpn() {
     dnsmasq-full
     vpn-policy-routing
     luci-app-vpn-policy-routing
-    luci-app-sqm
   )
-  opkg_update
-  opkg install "${packages[@]}" 
+  opkg remove dnsmasq
+  [[ -f /etc/config/dhcp ]] && rm /etc/config/dhcp
+  install_packages "${packages[@]}" 
 
   /etc/init.d/openvpn enable
 }
 
-# Create a file for authentication
-configure_openvpn() {
-  {
-    getsecret nordvpn::user
-    getsecret nordvpn::password
-  } | sh -c "cat > $openvpn/secret" 
+nordvpn() {
+  /root/nordvpnserver # This downloads a full config
 
-  sh -c "cat > $openvpn/nordvpn.conf" <<!
-config ${openvpn}/fastest.server
-auth-user-pass ${openvpn}/secret
+  cat <<! >$openvpn/nord.conf
+auth-user-pass '/etc/openvpn/nord.auth'
+config  "${openvpn}/fastest.server"
 !
 
-  uci set openvpn.nordvpn=openvpn
-  uci set openvpn.nordvpn.enabled='1'
-  uci set openvpn.nordvpn.config="${openvpn}/nordvpn.conf"
+  uci del openvpn.nord || true
+  uci set openvpn.nord=openvpn
+  uci set openvpn.nord.enabled='1'
+  uci set openvpn.nord.config="${openvpn}/nord.conf"
   uci commit openvpn
 
+  network_nordvpn
+
+# TODO set up cron for server refresh
 }
 
-nordvpn_server() {
+privatvpn() {
+# TODO complete config
+# TODO download from privat?
 
-  recommended=$(curl --silent "${api}" | jq --raw-output 'limit(1;.[]) | .hostname')
-  config=${recommended%%.*}.nordvpn.com.udp.ovpn
+  install_packages unzip
 
-  [[ -f /tmp/"${config}" ]] ||
-    curl -qs "https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/$config" -o /tmp/"${config}"
-  mkdir $openvpn/config
-  lxc file push "/tmp/$config" "${guest}/${openvpn}/config/"
-  sh -c "cat > $openvpn/fastest.server" <<!
-config ${openvpn}/config/$config
+  wget 'http://privatevpn.com/client/PrivateVPN-TUN.zip' -O $openvpn/PrivateVPN-TUN.zip
+  unzip $openvpn/PrivateVPN-TUN.zip -d $openvpn/ || true
+
+cat <<! >$openvpn/privat.conf
+remote uk-lon.pvdata.host 1195 udp
+auth-user-pass '/etc/openvpn/privat.auth'
+up ''
+down ''
+config  "${openvpn}/PrivateVPN-TUN/UDP/PrivateVPN-UK-London 1-TUN-1194.ovpn"
 !
+
+  uci del openvpn.privat || true
+  uci set openvpn.privat=openvpn
+  uci set openvpn.privat.config="$openvpn/privat.conf"
+  uci set openvpn.privat.enabled='1'
+
+  uci commit openvpn
+
+  network_privatvpn
 }
 
 network_base() {
-  uci set network.lan=interface
-  uci set network.lan.ifname='eth0'
-  uci set network.lan.proto='static'
-  uci set network.lan.netmask='255.255.255.0'
-  uci set network.lan.ip6assign='60'
-  uci set network.lan.ipaddr='192.168.11.251'
+  if [[ $IP ]] ; then
+    uci set network.lan=interface
+    uci set network.lan.ifname='eth0'
+    uci set network.lan.proto='static'
+    uci set network.lan.netmask='255.255.255.0'
+    uci set network.lan.ip6assign='60'
+    uci set network.lan.ipaddr=$IP
+  else
+    uci set network.lan=interface
+    uci set network.lan.ifname='eth0'
+    uci set network.lan.proto='dhcp'
+  fi
 
   uci set network.wan=interface
   uci set network.wan.ifname='eth1'
   uci set network.wan.proto='dhcp'
 
-  uci set network.wan.ifname='eth1'
-
 # configure the DNS servers:
   uci set network.wan.peerdns='0'
   uci del network.wan.dns || true
+# TODO what should DNS be for privat
   uci add_list network.wan.dns='103.86.96.100'
   uci add_list network.wan.dns='103.86.99.100'
 
@@ -116,6 +154,7 @@ network_base() {
 
   uci set dhcp.@dnsmasq[0].domain='theclarkhome.com'
   uci set dhcp.@dnsmasq[0].local='/theclarkhome.com/192.168.11.21'
+  uci set dhcp.@dnsmasq[0].boguspriv='0'
   uci del dhcp.@dnsmasq[0].server || true
   uci add_list dhcp.@dnsmasq[0].server='/theclarkhome.com/192.168.11.22'
   uci add_list dhcp.@dnsmasq[0].server='103.86.96.100'
@@ -165,7 +204,11 @@ network_sqm() {
   /etc/init.d/sqm restart
 }
 
-network_openvpn() {
+network_wan() {
+  network_sqm wan
+}
+
+network_nordvpn() {
   uci set network.nordvpntun=interface
   uci set network.nordvpntun.proto='none'
   uci set network.nordvpntun.ifname='tun0'
@@ -173,7 +216,16 @@ network_openvpn() {
   uci commit network
 
   network_sqm nordvpntun
-  network_sqm wan
+}
+
+network_privatvpn() {
+  uci set network.privatvpntun=interface
+  uci set network.privatvpntun.proto='none'
+  uci set network.privatvpntun.ifname='tun0'
+
+  uci commit network
+
+  network_sqm privatvpntun
 }
 
 # Create a new firewall zone and add a forwarding rule from LAN to VPN:
@@ -186,6 +238,7 @@ vpn_firewall() {
   uci set firewall.@zone[-1].masq='1'
   uci set firewall.@zone[-1].mtu_fix='1'
   uci add_list firewall.@zone[-1].network='nordvpntun'
+  echo TODO uci add_list firewall.@zone[-1].network='privatvpntun'
   uci add firewall forwarding
   uci set firewall.@forwarding[-1].src='lan'
   uci set firewall.@forwarding[-1].dest='vpnfirewall'
@@ -193,13 +246,12 @@ vpn_firewall() {
   uci add firewall redirect
   uci set firewall.@redirect[-1].dest_port='32400'
   uci set firewall.@redirect[-1].src='wan'
-  uci set firewall.@redirect[-1].name='Plex'
-  uci set firewall.@redirect[-1].src_dport='32400'
+  uci set firewall.@redirect[-1].name='Plex_32400'
+  uci set firewall.@redirect[-1].src_dport='32401'
   uci set firewall.@redirect[-1].target='DNAT'
-  uci set firewall.@redirect[-1].dest='lan'
+  uci set firewall.@redirect[-1].dest=$plex
 
   uci commit firewall
-
 }
 
 
@@ -230,19 +282,14 @@ vpn-policy-routing () {
   uci set vpn-policy-routing.config.webui_protocol_column='0'
   uci set vpn-policy-routing.config.webui_chain_column='0'
   uci set vpn-policy-routing.config.webui_sorting='1'
-  uci set vpn-policy-routing.config.webui_supported_protocol='tcp' 'udp' 'tcp udp' 'icmp' 'all'
+  uci set vpn-policy-routing.config.webui_supported_protocol="'tcp' 'udp' 'tcp udp' 'icmp' 'all'"
   uci set vpn-policy-routing.config.enabled='1'
-  uci set vpn-policy-routing.@policy[-1]=policy
-  uci set vpn-policy-routing.@policy[-1].comment='Plex Remote Servers'
-  uci set vpn-policy-routing.@policy[-1].interface='wan'
-  uci set vpn-policy-routing.@policy[-1].dest_addr='plex.tv my.plexapp.com'
 
   uci commit vpn-policy-routing
-
 }
 
 vpn_prevent_leak() {
-  sh -c "cat > /etc/firewall.user" <<!
+cat > "/etc/firewall.user" <<!
 # This file is interpreted as a shell script.
 # Put your custom iptables rules here, and they will be executed with each firewall (re-)start
 # Internal uci firewall chains are flushed and recreated on reload, so
@@ -254,7 +301,7 @@ if (! ip a s tun0 up) && (! iptables -C forwarding_rule -j REJECT); then
 fi
 !
 
-  sh -c "cat > /etc/hotplug.d/iface/99-prevent-leak" <<!
+cat > "/etc/hotplug.d/iface/99-prevent-leak" <<!
 #!/bin/sh
 if [ "\$ACTION" = ifup ] && (ip a s tun0 up) && (iptables -C forwarding_rule -j REJECT); then
        iptables -D forwarding_rule -j REJECT
@@ -265,48 +312,42 @@ fi
 !
 }
 
+upnpd() {
+  install_packages upnpd
+}
+
 snmpd() {
+  install_packages snmpd
   uci set snmpd.@system[0]=system
   uci set snmpd.@system[0].sysLocation='undisclosed'
   uci set snmpd.@system[0].sysContact='OpenWRT router <openwrt@openwrt.org>'
-  uci set snmpd.@system[0].sysName="${guest}"
-}
-
-create_container() {
-  local password
-  lxc init images:openwrt/19.07 "${guest}"
-
-  lxc config device add "${guest}" eth1 nic name=eth1 nictype=bridged parent=lxdbr0
-
-  lxc start "${guest}"
-  password=$(getsecret openwrt)
-  printf '%s\n%s' "${password}" "${password}" | lxc exec "${guest}" -- passwd
+  uci set snmpd.@system[0].sysName="$(cat /proc/sys/kernel/hostname)"
 }
 
 full_install() {
-  create_container
   network_base
-  install_packages
+  base_packages
   snmpd
+  network_wan
 
-  install_openvpn
-  configure_openvpn
-  nordvpn_server
-  network_openvpn
+  openvpn_packages
+
+  for vpn in "${vpns[@]}"; do
+    ${vpn}vpn
+  done
+
   vpn_firewall
   vpn_prevent_leak
+  vpn-policy-routing
 
   /etc/init.d/openvpn start
-  sleep 5
 }
-
-[[ $# -lt 1 ]] && Usage
 
 commands=("$@")
 if [[ ${#commands[@]} = 0 ]] ; then
   full_install
 else
-  for commands in "${commands[@]}"; do
+  for command in "${commands[@]}"; do
     $command
   done
 fi

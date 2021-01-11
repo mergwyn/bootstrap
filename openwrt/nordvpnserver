@@ -1,0 +1,18 @@
+#!//bin/bash
+# Script to initialise openwrt for nordvpn
+set -o nounset
+set -o pipefail
+set -o errexit
+
+readonly openvpn=/etc/openvpn
+readonly api="https://api.nordvpn.com/v1/servers/recommendations"
+
+recommended=$(curl --silent "${api}" | jq --raw-output 'limit(1;.[]) | .hostname')
+config=${recommended%%.*}.nordvpn.com.udp.ovpn
+
+mkdir -p $openvpn/config
+[[ -f "${openvpn}/config/${config}" ]] ||
+  curl -qs "https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/$config" -o "${openvpn}/config/${config}"
+echo "config ${openvpn}/config/$config" > "$openvpn/fastest.server"
+/etc/init.d/openvpn restart
+
