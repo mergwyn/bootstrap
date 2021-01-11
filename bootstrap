@@ -21,7 +21,7 @@ do
 	romeo)	  "${me}"/ubuntu/lxc_bootstrap --role=router --privileged --mac="00:16:3e:fb:dc:5e" --mounts="media" "${guest}";;
 	tango)	  "${me}"/ubuntu/lxc_bootstrap --role=media_server --privileged --nfs --mounts="net,home,media" --gpu "${guest}";;
 	delta)	  "${me}"/ubuntu/lxc_bootstrap --role=development --mounts="src,home" --privileged --boot=false "${guest}";;
-	victor)	  bash -x "${me}"/openwrt/lxc_bootstrap --ip=192.168.11.252 "${guest}";;
+	victor)	  bash -x "${me}"/openwrt/lxc_bootstrap --ip=192.168.11.252 --vpns=privat "${guest}";;
 	# testing
 	lima)	  "${me}"/ubuntu/lxc_bootstrap --boot=false --nesting=yes --privileged "${guest}";;
 	kilo)	  "${me}"/ubuntu/lxc_bootstrap --role=generic_server --environment=development --boot=false "${guest}";;
