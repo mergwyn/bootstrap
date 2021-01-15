@@ -54,7 +54,9 @@ base_packages() {
     jq
     curl
     coreutils-shuf
+    dnsmasq-full
   )
+  opkg remove dnsmasq
 
   install_packages "${packages[@]}" 
 }
@@ -104,6 +106,10 @@ cat <<! >$openvpn/privat.conf
 remote uk-lon.pvdata.host 1195 udp
 config  "${openvpn}/PrivateVPN-TUN/UDP/PrivateVPN-UK-London 1-TUN-1194.ovpn"
 auth-user-pass '/etc/openvpn/privat.auth'
+script-security 2
+up /etc/openvpn/update-resolv-conf
+down /etc/openvpn/update-resolv-conf
+down-pre
 !
 
   uci -q del openvpn.privat || true
@@ -139,6 +145,7 @@ network_base() {
   uci set network.wan.peerdns='0'
   uci -q del network.wan.dns || true
 # TODO what should DNS be for privat
+# TODO add loop across array
   uci add_list network.wan.dns='103.86.96.100'
   uci add_list network.wan.dns='103.86.99.100'
 
@@ -152,12 +159,11 @@ network_base() {
   uci set dhcp.@dnsmasq[0].boguspriv='0'
   uci -q del dhcp.@dnsmasq[0].server || true
   uci add_list dhcp.@dnsmasq[0].server='/theclarkhome.com/192.168.11.22'
-  uci add_list dhcp.@dnsmasq[0].server='103.86.96.100'
-  uci add_list dhcp.@dnsmasq[0].server='103.86.99.100'
-  #uci set dhcp.@dnsmasq[0].cachesize='0'
+# TODO add loop across array
+#  uci add_list dhcp.@dnsmasq[0].server='103.86.96.100'
+#  uci add_list dhcp.@dnsmasq[0].server='103.86.99.100'
   uci -q del dhcp.@dnsmasq[0].rebind_domain || true
   uci add_list dhcp.@dnsmasq[0].rebind_domain='theclarkhome.com'
-  #uci add_list dhcp.@dnsmasq[0].rebind_domain='bbc.co.uk'
   uci add_list dhcp.@dnsmasq[0].rebind_domain='plex.direct'
 
   uci set dhcp.lan.ignore='1'
@@ -169,7 +175,7 @@ network_base() {
   uci commit dhcp
   /etc/init.d/dnsmasq restart
 
-  sleep 15
+  sleep 10
 }
 
 network_sqm() {
@@ -251,11 +257,9 @@ vpn_policy_routing () {
   log_notice "Setting up vpn-policy-routing"
   packages=(
     bind-dig
-    dnsmasq-full
     vpn-policy-routing
     luci-app-vpn-policy-routing
   )
-  opkg remove dnsmasq
   [[ -f /etc/config/dhcp ]] && rm /etc/config/dhcp
   install_packages "${packages[@]}" 
 

@@ -1,0 +1,10 @@
+#!/bin/sh
+env | sed -n -e "
+/^foreign_option_.*=dhcp-option.*DNS/s//nameserver/p
+/^foreign_option_.*=dhcp-option.*DOMAIN/s//search/p
+" | sort -u > /tmp/resolv.conf.vpn
+case ${script_type} in
+(up) uci set dhcp.@dnsmasq[0].resolvfile="/tmp/resolv.conf.vpn" ;;
+(down) uci revert dhcp ;;
+esac
+/etc/init.d/dnsmasq restart &

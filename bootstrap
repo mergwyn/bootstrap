@@ -15,13 +15,13 @@ do
 	echo)	  "${me}"/ubuntu/lxc_bootstrap --role=puppet_master --puppet="master" "${guest}";;
 	#juliet)   "${me}"/ubuntu/lxc_bootstrap --role=router --vm --mac="00:16:3e:8d:d3:af" --environment=development --boot=false "${guest}";;
 	juliet)   "${me}"/openwrt/lxc_bootstrap "${guest}";;
-	golf:juliet)   bash -x "${me}"/openwrt/lxc_bootstrap --ip=192.168.11.251   "${guest}";;
+	golf:juliet)   bash -x "${me}"/openwrt/lxc_bootstrap --ip=192.168.11.251 --vpns=nord "${guest}";;
 	india)	  "${me}"/ubuntu/lxc_bootstrap --role=iptv_server --mounts="media" --mac="00:16:3e:93:c6:21" --nfs "${guest}";;
 	papa)	  "${me}"/ubuntu/lxc_bootstrap --role=internet_gateway --mac="00:16:3e:fc:2a:87" "${guest}";;
 	romeo)	  "${me}"/ubuntu/lxc_bootstrap --role=router --privileged --mac="00:16:3e:fb:dc:5e" --mounts="media" "${guest}";;
 	tango)	  "${me}"/ubuntu/lxc_bootstrap --role=media_server --privileged --nfs --mounts="net,home,media" --gpu "${guest}";;
 	delta)	  "${me}"/ubuntu/lxc_bootstrap --role=development --mounts="src,home" --privileged --boot=false "${guest}";;
-	victor)	  bash -x "${me}"/openwrt/lxc_bootstrap --ip=192.168.11.252 --vpns=privat "${guest}";;
+	victor)	  bash -x "${me}"/openwrt/lxc_bootstrap --vpns=privat --ip=192.168.11.252 "${guest}";;
 	# testing
 	lima)	  "${me}"/ubuntu/lxc_bootstrap --boot=false --nesting=yes --privileged "${guest}";;
 	kilo)	  "${me}"/ubuntu/lxc_bootstrap --role=generic_server --environment=development --boot=false "${guest}";;

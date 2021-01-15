@@ -97,6 +97,7 @@ for guest in "${guests[@]}"; do
       ;;
     privat)
       configure_privatvpn
+      lxc file push ${here}/update-resolv-conf ${guest}${openvpn}/
       lxc file push ${here}/privat.auth ${guest}${openvpn}/
       ;;
     esac
