@@ -1,0 +1,9 @@
+IP=192.168.11.252
+sed -e "s/^\(config interface \)'wan'/\1'lan'/" \
+    -e "s/\(option proto \)'dhcp'/\1'static'\\
+    option netmask '255.255.255.0'\\
+    option ip6assign '60'\\
+    option ipaddr '${IP}'\\
+    list dns '192.168.11.21'\\
+    list dns '192.168.11.22'\\
+/" victor_network

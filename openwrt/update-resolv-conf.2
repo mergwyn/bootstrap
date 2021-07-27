@@ -1,0 +1,39 @@
+#!/bin/sh
+#set -x -v
+#exec &>${0%.*}.log
+output=/tmp/resolv.conf.auto
+
+case $script_type in
+up)
+  i=1
+  ns=""
+  while true; do
+    # As we know, for non-Windows openvpn clients can accept push DH
+    # options by using a client-side up script which parses the
+    # foreign_option_n environmental variable list
+    eval opt=\$foreign_option_${i}
+    [ -z "${opt}" ] && break
+
+    ns="$ns\n$(echo ${opt} | sed -e 's/dhcp-option DOMAIN/domain/g' -e 's/dhcp-option DNS/nameserver/g')"
+
+    i=$((i + 1))
+  done
+
+  if [ -n "$ns" ]; then
+    echo -e "$ns" > ${output}
+  else
+    echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" > ${output}
+  fi
+
+  # Let it runs on background, in order to avoid any delay to add route table,
+  # which will effort to mwan3
+  /etc/init.d/dnsmasq restart &
+  ;;
+down)
+  # Restore dns
+  echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" > ${output}
+  /etc/init.d/dnsmasq restart &
+  ;;
+esac
+
+exit 0
