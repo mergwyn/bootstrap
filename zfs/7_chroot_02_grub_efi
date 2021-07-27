@@ -31,7 +31,7 @@ do
   eficount+=1
   # if more than 1 disk, we need efibootmgr
   [[ ${eficount} -gt 1 ]] && 
-    efibootmgr -c -g -d "${disk}" -p ${efipart} -L "ubuntu-${eficount}" -l '\EFI\Ubuntu\grubx64.efi'
+    efibootmgr -c -g -d "${disk}" -p ${PARTEFI} -L "ubuntu-${eficount}" -l '\EFI\Ubuntu\grubx64.efi'
   umount /boot/efi
 done
 

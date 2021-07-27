@@ -1,9 +1,11 @@
 #!/bin/bash
 
+export PARTEFI=${PARTEFI:-"-part9"}
+export PARTZFS=${PARTZFS:-"-part1"}
 
 WIDTH=74
 HEIGHT=20
-eval $(resize)
+#eval $(resize)
 [[ $COLUMNS ]] && WIDTH=$(( $COLUMNS - 8 ))
 [[ $LINESCOLUMNS ]] && HEIGHT=$(( $LINES - 8 ))
 
@@ -19,6 +21,7 @@ for DISK in $(lsblk -I8,254,259 -dn -o name); do
 		SELECT+=("$DISK" "${BYID[$DISK]}" off)
 	fi
 done
+SELECT+=(TESTDISK TESTDISK off)
 
 TMPFILE=$(mktemp)
 whiptail --backtitle "$0" --title "Drive selection" --separate-output \

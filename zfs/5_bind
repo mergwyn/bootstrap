@@ -3,7 +3,7 @@
 for d in /dev /dev/pts /proc /sys /run; do
     mount --rbind $d ${dir}$d
 done
-rm $dir/etc/resolv.conf
-cp /etc/resolv.conf $dir/etc/resolv.conf
-echo $root > $dir/etc/debian_chroot
+rm"${ALTROOT}"/etc/resolv.conf
+cp /etc/resolv.conf"${ALTROOT}"/etc/resolv.conf
+echo $root >"${ALTROOT}"/etc/debian_chroot
 

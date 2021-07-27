@@ -1,5 +1,5 @@
 #!/bin/bash
 . $(dirname $0)/conf
 
-zfs snapshot -r ${pool}@install
-zpool export ${pool}
+zfs snapshot -r"${RPOOL}"@install
+zpool export"${RPOOL}"

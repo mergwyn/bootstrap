@@ -17,20 +17,18 @@ ROLE=
 SIZE=20GB
 VM=
 
-lxc init images:openwrt/19.07 router
-
+puppetmaster='echo'
+lxcpuppetmaster="golf:${puppetmaster}"
 case $host in
-foxtrot)  POOL=array
-          puppetmaster='echo'
+foxtrot)  POOL=rpool
           ;;
-*)        POOL=default
-          puppetmaster=foxtrot:echo
+*)        POOL=rpool
           ;;
 esac
 
 declare -A _configs _devices _mountconfig
 
-_configs['boot']="boot.autostart true"
+_configs['boot.autostart']="true"
 _devices['root']="root disk path=/ pool=${POOL} size=${SIZE}"
 
 _mountconfig['home']="disk path=/home source=/home recursive=true"
@@ -43,14 +41,14 @@ _mountconfig['tun']="unix-char path=/dev/net/tun"
 #bold() { echo echo -e "\e[32m$*\e[0m"; }
 bold() { echo "$(tput smso)$*$(tput rmso)"; }
 
-Usage()
-{
+Usage() {
   cat <<EOF >&2
 $0: <flags> guests
 Allowed flags are:
 --arch=<arch> 			architecture [default = amd64]
 --boot=<true|false> 	        autostart container at boot [default = true]
 --environment=<environment> 	environment to use [default=production]
+--eth1=<device>                 add eth1 and attach to <device>
 --gpu                           add gpu
 --mounts                        List of comma separated mounts to add valid: ${!_mountconfig[@]}
 --mac=<address>                 mac address
@@ -67,29 +65,29 @@ EOF
   exit 1
 }
 
-params="$(getopt -o h: --long arch:,boot:,environment:,gpu,mac:,mounts:,nesting:,nfs,privileged,puppet:,raw:,role:,size:,static:,version:,vm --name "$0" -- "$@")"
+params="$(getopt -o h: --long arch:,boot:,environment:,eth1:,gpu,mac:,mounts:,nesting:,nfs,privileged,puppet:,raw:,role:,size:,static:,version:,vm --name "$0" -- "$@")"
 eval set -- "$params"
 
-while true
-do
+while true ; do
   case "$1" in
     --arch)	        ARCH=$2; shift 2 ;;
-    --boot)		_configs['boot']="boot.autostart ${2}"; shift 2 ;;
+    --boot)		_configs['boot.autostart']="${2}"; shift 2 ;;
     --environment)	ENVIRONMENT=$2; shift 2 ;;
+    --eth1)      	_devices['eth1']="eth1 nic name=eth1 nictype=bridged parent=${2}"; shift 2;;
     --gpu)      	_devices['gpu']="gpu gpu gid=44"; shift;;
     --mounts)	        IFS=',' read -r -a MOUNTS <<< "$2"; shift 2 ;;
-    --mac)	        _configs['mac']="volatile.eth0.hwaddr ${2}"; shift 2;;
-    --nesting)	        _configs['nesting']="security.nesting ${2}"; shift 2;;
+    --mac)	        _configs['volatile.eth0.hwaddr']="${2}"; shift 2;;
+    --nesting)	        _configs['security.nesting']="${2}"; shift 2;;
     --nfs)
-      _configs['nfs']='raw.apparmor "mount fstype=nfs,"'
-      _configs['privileged']="security.privileged true"
+      _configs['raw.apparmor']="mount fstype=nfs,"
+      _configs['security.privileged']="true"
       shift;;
-    --privileged)	_configs['privileged']="security.privileged true"; shift;;
+    --privileged)	_configs['security.privileged']="true"; shift;;
     --puppet)    	PUPPET=$2; shift 2 ;;
     --size)
       _devices['root']="root disk path=/ pool=${POOL} size=${2}"
       shift 2;;
-    --raw)              _configs['raw']="raw.lxc ${2}"; shift 2;;
+    --raw)              _configs['raw.lxc']="${2}"; shift 2;;
     --role)		ROLE=$2; shift 2 ;;
     --static)	        IP=$2; shift 2 ;;
     --vm)	        VM="$1"; shift ;;
@@ -104,28 +102,25 @@ done
 
 guests=("$@")
 
-for guest in "${guests[@]}"
-do
+for guest in "${guests[@]}" ; do
   bold "Create ${guest} with flags:"
   echo "ROLE=${ROLE}, ARCH=${ARCH}, PUPPET=${PUPPET}, IP=${IP} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL} VM=${VM}"
-  for MOUNT in "${MOUNTS[@]}"
-  do
+  for MOUNT in "${MOUNTS[@]}" ; do
     _devices["${MOUNT}"]="${MOUNT} ${_mountconfig[${MOUNT}]}"
   done
-  #bold "Configs:"; printf '%s\n' "${_configs[@]}"
-  #bold "Devices:"; printf '%s\n' "${_devices[@]}"
+  bold "Configs:"; printf '%s\n' "${_configs[@]}"
+  bold "Devices:"; printf '%s\n' "${_devices[@]}"
 
   VERSION=images:ubuntu/${OSVERSION}/cloud/${ARCH}
   lxc init ${VM} "${VERSION}" "${guest}" 
 
-  for config in "${!_configs[@]}"
-  do
+  for config in "${!_configs[@]}" ; do
     # shellcheck disable=SC2086
-    lxc config set "${guest}" ${_configs[${config}]}
+    echo $config:${_configs[${config}]}
+    lxc config set "${guest}" $config "${_configs[${config}]}"
   done
 
-  for device in "${!_devices[@]}"
-  do
+  for device in "${!_devices[@]}" ; do
     # shellcheck disable=SC2086
     lxc config device add "${guest}" ${_devices[${device}]}
   done
@@ -134,28 +129,61 @@ do
 
 
   echo TODO: use array to manage cloud-init config >&2
+  case ${OSVERSION} in
+  hirsute|bionic) puppetversion=xenial;;
+  default) puppetversion=${OSVERSION};;
+  esac
 
+
+# TODO: remove workaround for hardcoding key
+# TODO: see https://puppet.com/blog/updated-puppet-gpg-signing-key-2020-edition/
   declare -a userdata
-  userdata+=("#cloud-config")
-  userdata+=("
+  mapfile userdata <<!
+#cloud-config
 apt:
   sources:
     puppet6:
-      source: 'deb http://apt.puppetlabs.com ${OSVERSION} puppet6'
-      keyid: 7F438280EF8D349F
-      keyserver: 'https://apt.puppetlabs.com/DEB-GPG-KEY-puppet'
+      source: 'deb http://apt.puppetlabs.com ${puppetversion} puppet6'
+      key: |
+        -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+        mQINBFyrv4oBEADhL8iyDPZ+GWN7L+A8dpEpggglxTtL7qYNyN5Uga2j0cusDdOD
+        ftPHsurLjfxtc2EFGdFK/N8y4LSpq+nOeazhkHcPeDiWC2AuN7+NGjH9LtvMUqKy
+        NWPhPYP2r/xPL547oDMdvLXDH5n+FsLFW8QgATHk4AvlIhGng0gWu80OqTCiL0HC
+        W7TftkF8ofP8k90SnLYbI9HDVOj6VYYtqG5NeoCHGAqrb79G/jq64Z/gLktD3IrB
+        CxYhKFfJtZ/BSDB8Aa4ht+jIyeFCNSbGyfFfWlHKvF3JngS/76Y7gxX1sbR3gHJQ
+        hO25AQdsPYKxgtIgNeB9/oBp1+V3K1W/nta4gbDVwJWCqDRbEFlHIdV7fvV/sqiI
+        W7rQ60aAY7J6Gjt/aUmNArvT8ty3szmhR0wEEU5/hhIVV6VjS+AQsI8pFv6VB8bJ
+        TLfOBPDW7dw2PgyWhVTEN8KW/ckyBvGmSdzSgAhw+rAe7li50/9e2H8eiJgBbGid
+        8EQidZgkokh331CMDkIA6F3ygiB+u2ZZ7ywxhxIRO70JElIuIOiofhVfRnh/ODlH
+        X7eD+cA2rlLQd2yWf4diiA7C9R8r8vPrAdp3aPZ4xLxvYYZV8E1JBdMus5GRy4rB
+        Avetp0Wx/1r9zVDKD/J1bNIlt0SR9FTmynZj4kLWhoCqmbrLS35325sS6wARAQAB
+        tEhQdXBwZXQsIEluYy4gUmVsZWFzZSBLZXkgKFB1cHBldCwgSW5jLiBSZWxlYXNl
+        IEtleSkgPHJlbGVhc2VAcHVwcGV0LmNvbT6JAlQEEwEKAD4WIQTWgR7Tre64RBr1
+        qo9FKLbNnmHvJgUCXKu/igIbAwUJC0c1AAULCQgHAwUVCgkICwUWAgMBAAIeAQIX
+        gAAKCRBFKLbNnmHvJg/vD/0eOl/pBb6ooGnzg2qoD+XwgOK3HkTdvGNZKGsIrhUG
+        q6O0zoyPW8v9b/i7QEDre8QahARmMAEQ+T3nbNVzw4kpE+YIrEkKjoJsrF8/K/1L
+        zBHJCc3S9oF9KubG5BuQ4bAmcvnI+qpEYbSTLHztYGUfXAGu+MnaDf4C60G7zM6m
+        ec4bX8lVnt+gcsGGGCdN89XsZLBNdv21z9xMeaAPiRYJpbqwrb8cYbKQeqFSQt2M
+        UylN5oVeN77Q8iyXSyVwpc6uKzXdQ8bVPbKUTWSXQ4SSp0HJjtAMiDH2pjty4PG6
+        EgZ6/njJLOzQ29ZgFrS19XLONlptHwKzLYB8nJhJvGHfzzInmNttDtNwTA6IxpsR
+        4aCnrPWFJRCbmMBNXvBR9B/O+e/T5ngL21ipMEwzEOiQlRSacnO2pICwZ5pARMRI
+        dxq/5BQYry9HNlJDGR7YIfn7i0oCGk5BxwotSlAPw8jFpNU/zTOvpQAdPvZje2JP
+        6GS+hYxSdHsigREXI2gxTvpcLk8LOe9PsqJv631e6Kvn9P9OHiihIp8G9fRQ8T7y
+        elHcNanV192mfbWxJhDAcQ+JEy9883lOanaCoaf/7z4kdmCQLz5/oNg2K0qjSgZH
+        JY/gxCOwuAuUJlLcAXQG6txJshfMxyQUO46DXg0/gjwkKgT/9PbTJEN/WN/G6n1h
+        lQ==
+        =nKF2
+        -----END PGP PUBLIC KEY BLOCK-----
 
 package_update: true
 package_upgrade: true
-
 packages:
   - openssh-server
-")
+!
 
-  if [[ ${PUPPET} != "no" ]]
-  then
-
-    userdata+=("
+  if [[ ${PUPPET} != "no" ]] ; then
+    mapfile -O ${#userdata[@]} userdata <<!
 puppet:
   package_name: puppet-agent
   conf_file: '/etc/puppetlabs/puppet/puppet.conf'
@@ -164,50 +192,20 @@ puppet:
   conf:
     agent:
       server: '${puppetmaster}.${domain}'
-      environment: ${ENVIRONMENT}")
+      environment: ${ENVIRONMENT}
+!
+
     if [[ ${ROLE} ]]
     then
-      userdata+=("
+      mapfile -O ${#userdata[@]} userdata <<!
   csr_attributes:
     extension_requests:
       pp_role: '${ROLE}'
-")
+!
     fi
   fi
 
-  echo "${userdata[@]}"
-
   echo "${userdata[@]}" | lxc config set "${guest}" user.user-data -
-  #lxc config set "${guest}" user.user-data - <<!
-  cat > /dev/null <<!
-
-#cloud-config
-apt:
-  sources:
-    puppet6:
-      source: "deb http://apt.puppetlabs.com ${OSVERSION} puppet6"
-      keyid: 7F438280EF8D349F
-      keyserver: "https://apt.puppetlabs.com/DEB-GPG-KEY-puppet"
-
-package_update: true
-package_upgrade: true
-
-puppet:
-  package_name: puppet-agent
-  conf_file: '/etc/puppetlabs/puppet/puppet.conf'
-  ssl_dir: '/etc/puppetlabs/puppet/ssl'
-  csr_attributes_path: '/etc/puppetlabs/puppet/csr_attributes.yaml'
-  conf:
-    agent:
-      server: "${puppetmaster}.${domain}"
-      environment: ${ENVIRONMENT}
-  csr_attributes:
-    extension_requests:
-      pp_role: "${ROLE}"
-
-packages:
-  - openssh-server
-!
 #power_state:
 #  delay: now
 #  mode: reboot
@@ -215,27 +213,34 @@ packages:
 #  timeout: 30
 #  condition: True
 
+  if [ "${IP}" != "" ] ; then
+    readarray -d' ' -t ipdata < <(ip -o route get 8.8.8.8)
+    gateway=${ipdata[2]}
+    if=${ipdata[4]}
+    readarray -d: -t domdata < <(resolvectl -i ${if} domain)
+    readarray -d: -t nsdata < <(resolvectl -i ${if} dns)
+
+    cat <<! | lxc config set "${guest}" user.network-config -
+version: 1
+config:
+  - type: physical
+    name: eth0
+    subnets:
+      - type: static
+        ipv4: true
+        address: ${IP}/24
+        gateway: ${gateway}
+        control: auto
+  - type: nameserver
+    address: [ $(printf '%s, ' ${nsdata[1]}) ]
+    search: [ $(printf '%s, ' ${domdata[1]}) ]
+!
+  fi
+
   lxc config show "${guest}"
 
-  if [ "${IP}" != "" ]
-  then
-    echo TODO remove /etc/network/interfaces if netplan >&2
-    lxc config set "${guest}" user.network-config - <<!
-#cloud-config
-network:
-  version: 2
-  ethernets:
-    eth0:
-      addressses: [ "${IP}"/24 ]
-      gateway4: $(grep gateway /etc/network/interfaces)
-      nameservers:
-        search: [ $(grep dns-search /etc/network/interfaces) ]
-        addresses: [ $(grep dns-nameservers /etc/network/interfaces) ]
-!
-    sleep 2
-  fi
   bold "Cleaning puppet cert"
-  lxc exec ${puppetmaster} --env LANG="${LANG}" -- "$(dirname "$(command -v puppet)")"/puppetserver ca clean --certname "${guest}.${domain}" || true
+  lxc exec ${lxcpuppetmaster} --env LANG="${LANG}" -- "$(dirname "$(command -v puppet)")"/puppetserver ca clean --certname "${guest}.${domain}" || true
   bold "Starting ${guest}"
   lxc start ${guest}
   sleep 1

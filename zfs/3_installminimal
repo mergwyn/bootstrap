@@ -2,7 +2,7 @@
 . $(dirname $0)/conf
 
 apt install debootstrap
-chmod 1777 $dir/var/tmp
-debootstrap $version $dir
-zfs set devices=off ${pool}
+chmod 1777"${ALTROOT}"/var/tmp
+debootstrap $version"${ALTROOT}"
+zfs set devices=off"${RPOOL}"
  

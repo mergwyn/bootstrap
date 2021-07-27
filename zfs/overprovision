@@ -8,12 +8,12 @@ then
 	exit 1
 fi
 
-allocation=90 # % allocated
+allocation=100 # % allocated
 pool=rpool
 diskname=ata-SanDisk_SSD_PLUS_120_GB_174505461706
-diskname=ata-SanDisk_SDSSDA120G_164722461404
 diskname=ata-Corsair_Force_LS_SSD_150381680001016703E4
 diskname=ata-Corsair_Force_LS_SSD_18047977000123960208
+diskname=ata-SanDisk_SDSSDA120G_164722461404
 disk=/dev/disk/by-id/${diskname}
 hdparm="echo hdparm" # delete echo why dry running complete
 hdparm="hdparm" 

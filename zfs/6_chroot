@@ -1,10 +1,10 @@
 #!/bin/bash -x
 . $(dirname $0)/conf
-cp conf 7_chroot_* $dir/root
+cp conf 7_chroot_*"${ALTROOT}"/root
 
 for i in 7_chroot_*
 do
 	echo $i:
-	chroot $dir bash /root/$i
+	chroot"${ALTROOT}" bash /root/$i
 done
 

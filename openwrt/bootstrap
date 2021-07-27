@@ -107,6 +107,7 @@ cat <<! >$openvpn/privat.conf
 remote uk-lon.pvdata.host 1195 udp
 config  "${openvpn}/PrivateVPN-TUN/UDP/PrivateVPN-UK-London 1-TUN-1194.ovpn"
 auth-user-pass '/etc/openvpn/privat.auth'
+comp-lzo no
 script-security 2
 up /etc/openvpn/update-resolv-conf
 down /etc/openvpn/update-resolv-conf
@@ -125,6 +126,7 @@ down-pre
 
 network_base() {
   log_notice "Setting up base network"
+  uci -q del network.lan.dns || true
   if [[ $IP ]] ; then
     uci set network.lan=interface
     uci set network.lan.ifname='eth0'
@@ -132,6 +134,8 @@ network_base() {
     uci set network.lan.netmask='255.255.255.0'
     uci set network.lan.ip6assign='60'
     uci set network.lan.ipaddr=$IP
+    uci add_list network.lan.dns='192.168.11.21'
+    uci add_list network.lan.dns='192.168.11.22'
   else
     uci set network.lan=interface
     uci set network.lan.ifname='eth0'
@@ -147,8 +151,8 @@ network_base() {
   uci -q del network.wan.dns || true
 # TODO what should DNS be for privat
 # TODO add loop across array
-  uci add_list network.wan.dns='103.86.96.100'
-  uci add_list network.wan.dns='103.86.99.100'
+  uci add_list network.wan.dns='8.8.8.8'
+  uci add_list network.wan.dns='8.8.4.4'
 
   uci set 'network.lan.ipv6=off'
   uci set 'network.wan.ipv6=off'
@@ -158,6 +162,7 @@ network_base() {
   uci set dhcp.@dnsmasq[0].domain='theclarkhome.com'
   uci set dhcp.@dnsmasq[0].local='/theclarkhome.com/192.168.11.21'
   uci set dhcp.@dnsmasq[0].boguspriv='0'
+  uci set dhcp.@dnsmasq[0].nohosts='1'
   uci -q del dhcp.@dnsmasq[0].server || true
   uci add_list dhcp.@dnsmasq[0].server='/theclarkhome.com/192.168.11.22'
 # TODO add loop across array
@@ -234,12 +239,14 @@ add_port_forward() {
   dest=$4
   dest_port=$5
 
-  uci set firewall.@redirect[-1].name="'$name'"
-  uci set firewall.@redirect[-1].dest"'$dest'"
-  uci set firewall.@redirect[-1].dest_port="'$dest_port'"
-  uci set firewall.@redirect[-1].src="'$src'"
-  uci set firewall.@redirect[-1].src_dport="'$src_port'"
-  uci set firewall.@redirect[-1].target='DNAT'
+  uci add firewall redirect
+  uci set firewall.@redirect[-1].name="$name"
+  uci set firewall.@redirect[-1].src="$src"
+  uci set firewall.@redirect[-1].src_dport="$src_port"
+  uci set firewall.@redirect[-1].dest='lan'
+  uci set firewall.@redirect[-1].dest_ip="$dest"
+  uci set firewall.@redirect[-1].dest_port="$dest_port"
+  uci set firewall.@redirect[-1].target=DNAT
 }
 
 # Create a new firewall zone and add a forwarding rule from LAN to VPN:
@@ -258,20 +265,20 @@ vpn_firewall() {
   uci set firewall.@forwarding[-1].src='lan'
   uci set firewall.@forwarding[-1].dest='vpnfirewall'
 
-  uci add firewall redirect
+#  uci add firewall redirect
 #  uci set firewall.@redirect[-1].dest_port='32400'
 #  uci set firewall.@redirect[-1].src='wan'
 #  uci set firewall.@redirect[-1].name='Plex_32400'
 #  uci set firewall.@redirect[-1].src_dport='32401'
 #  uci set firewall.@redirect[-1].target='DNAT'
 #  uci set firewall.@redirect[-1].dest=$plex
-  add port_forward plex_32400 vpnfirewall 32400 $plex 32400
-  add port_forward sonarr_8989 vpnfirewall 8989 $proxy 8989
-  add port_forward radarr_7878 vpnfirewall 7878 $proxy 7878
-  add port_forward sab_8080 vpnfirewall 8080 $proxy 8080
-  add port_forward transmission_9091 vpnfirewall 9091 $proxy 9091
-  add port_forward http vpnfirewall 80 $proxy 80
-  add port_forward https vpnfirewall 443 $proxy 443
+  add_port_forward plex_32400 vpnfirewall 32400 $plex 32400
+  add_port_forward sonarr_8989 vpnfirewall 8989 $proxy 8989
+  add_port_forward radarr_7878 vpnfirewall 7878 $proxy 7878
+  add_port_forward sab_8080 vpnfirewall 8080 $proxy 8080
+  add_port_forward transmission_9091 vpnfirewall 9091 $proxy 9091
+  add_port_forward http vpnfirewall 80 $proxy 80
+  add_port_forward https vpnfirewall 443 $proxy 443
 
   uci commit firewall
 }

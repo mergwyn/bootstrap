@@ -32,4 +32,4 @@ zfs create                                       		${pool}/var/log
 zfs create -o exec=on                                   	${pool}/var/tmp
 zfs create -o mountpoint=/var/lib/nfs                 		${pool}/var/nfs
 
-zpool set bootfs="${BE}" ${pool}
+zpool set bootfs="${BE}""${RPOOL}"

@@ -1,8 +1,8 @@
 #!/bin/bash
 . $(dirname $0)/conf
 
-rm $dir/etc/debian_chroot
+rm"${ALTROOT}"/etc/debian_chroot
 
 mount | grep -v zfs | tac | awk '/\/mnt/ {print $3}' | xargs -i{} umount -lf {}
 zfs umount -a
-zfs umount $dir
+zfs umount"${ALTROOT}"

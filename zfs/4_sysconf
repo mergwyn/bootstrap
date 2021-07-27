@@ -1,11 +1,11 @@
 #!/bin/bash
 . $(dirname $0)/conf
 
-echo $host > $dir/etc/hostname
-sed -i -e "1a 127.0.1.1       $host.$domain $host" $dir/etc/hosts
-cat $dir/etc/hosts
+echo $host >"${ALTROOT}"/etc/hostname
+sed -i -e "1a 127.0.1.1       $host.$domain $host""${ALTROOT}"/etc/hosts
+cat"${ALTROOT}"/etc/hosts
 
-cat >> $dir/etc/network/interfaces <<!
+cat >>"${ALTROOT}"/etc/network/interfaces <<!
 auto $network
 iface $network inet dhcp
 !

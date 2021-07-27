@@ -39,6 +39,33 @@ create_container() {
 
   lxc config device add "${guest}" eth1 nic name=eth1 nictype=bridged parent=lxdbr0
 
+  if [[ -n ${IP} ]] ; then
+    lxc file pull ${guest}/etc/config/network ${guest}_network
+    sed -i -e "/^\(config interface \)'wan'/,+3d" ${guest}_network
+    cat >> ${guest}_network <<!
+
+config interface 'wan'
+	option proto 'dhcp'
+	option ifname 'eth1'
+	option peerdns '0'
+	list dns '8.8.8.8'
+	list dns '8.8.4.4'
+	option ipv6 'off'
+
+config interface 'lan'
+	option ifname 'eth0'
+	option proto 'static'
+	option netmask '255.255.255.0'
+	option ip6assign '60'
+	option ipaddr '192.168.11.252'
+	list dns '192.168.11.21'
+	list dns '192.168.11.22'
+	option ipv6 'off'
+!
+    lxc file push ${guest}_network ${guest}/etc/config/network
+    cat ${guest}_network
+    rm ${guest}_network
+  fi
   lxc start "${guest}"
   password=$(getsecret openwrt)
   printf '%s\n%s' "${password}" "${password}" | lxc exec "${guest}" -- passwd
@@ -63,7 +90,8 @@ eval set -- "$params"
 
 while true ; do
   case "$1" in
-    -i|--ip)    guest_args+=("--ip=$2"); shift 2 ;;
+    -i|--ip)    IP=$2
+                guest_args+=("--ip=$2"); shift 2 ;;
     -h|--help)  Usage; exit 0 ;;
     --vpns)     guest_args+=("--vpns=$2")
                 IFS=',' read -r -a vpns <<< "$2"
