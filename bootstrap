@@ -30,8 +30,8 @@ do
 	lima)	  args="--boot=false --nesting=yes --privileged" ;;
 	kilo)	  args="--role=generic_server --environment=development --boot=false" ;;
 	sierra)	  args="--role=domain_controller --environment=development --boot=false" ;;
-	november) args="--role=media_server --privileged --nfs --mounts=net,home,media --gpu --version=hirsute" ;;
-	yankee)	  args="--role=router --boot=false --environment=development" ;;
+	november) args="--role=minimal_server --boot=false --environment=development" ;;
+	yankee)   args="--role=minimal_server --boot=false --environment=development" ;;
 	*)	  args="" ;;
 	esac
 	${me}/${bootstrap} ${args} ${guest}
