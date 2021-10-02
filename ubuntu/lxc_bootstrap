@@ -108,8 +108,8 @@ for guest in "${guests[@]}" ; do
   for MOUNT in "${MOUNTS[@]}" ; do
     _devices["${MOUNT}"]="${MOUNT} ${_mountconfig[${MOUNT}]}"
   done
-  bold "Configs:"; printf '%s\n' "${_configs[@]}"
-  bold "Devices:"; printf '%s\n' "${_devices[@]}"
+  bold "Configs:"; typeset -p _configs
+  bold "Devices:"; typeset -p _devices
 
   VERSION=images:ubuntu/${OSVERSION}/cloud/${ARCH}
   lxc init ${VM} "${VERSION}" "${guest}" 
@@ -128,10 +128,9 @@ for guest in "${guests[@]}" ; do
   # Now set cloud-init to install puppet agent
 
 
-  echo TODO: use array to manage cloud-init config >&2
   case ${OSVERSION} in
   hirsute|bionic) puppetversion=xenial;;
-  default) puppetversion=${OSVERSION};;
+  *)              puppetversion=${OSVERSION};;
   esac
 
 
@@ -205,7 +204,7 @@ puppet:
     fi
   fi
 
-  echo "${userdata[@]}" | lxc config set "${guest}" user.user-data -
+  printf '%s' "${userdata[@]}" | lxc config set "${guest}" user.user-data -
 #power_state:
 #  delay: now
 #  mode: reboot
