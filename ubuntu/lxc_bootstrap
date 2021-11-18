@@ -4,7 +4,6 @@ set -o pipefail
 set -o errexit
 
 . /etc/lsb-release
-ARCH=amd64
 domain=$(hostname -d)
 ENVIRONMENT=production
 guests=
@@ -65,12 +64,11 @@ EOF
   exit 1
 }
 
-params="$(getopt -o h: --long arch:,boot:,environment:,eth1:,gpu,mac:,mounts:,nesting:,nfs,privileged,puppet:,raw:,role:,size:,static:,version:,vm --name "$0" -- "$@")"
+params="$(getopt -o h: --long boot:,environment:,eth1:,gpu,mac:,mounts:,nesting:,nfs,privileged,puppet:,raw:,role:,size:,static:,version:,vm --name "$0" -- "$@")"
 eval set -- "$params"
 
 while true ; do
   case "$1" in
-    --arch)	        ARCH=$2; shift 2 ;;
     --boot)		_configs['boot.autostart']="${2}"; shift 2 ;;
     --environment)	ENVIRONMENT=$2; shift 2 ;;
     --eth1)      	_devices['eth1']="eth1 nic name=eth1 nictype=bridged parent=${2}"; shift 2;;
@@ -104,14 +102,14 @@ guests=("$@")
 
 for guest in "${guests[@]}" ; do
   bold "Create ${guest} with flags:"
-  echo "ROLE=${ROLE}, ARCH=${ARCH}, PUPPET=${PUPPET}, IP=${IP} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL} VM=${VM}"
+  echo "ROLE=${ROLE}, PUPPET=${PUPPET}, IP=${IP} ENVIRONMENT=${ENVIRONMENT} OSVERSION=${OSVERSION} POOL=${POOL} VM=${VM}"
   for MOUNT in "${MOUNTS[@]}" ; do
     _devices["${MOUNT}"]="${MOUNT} ${_mountconfig[${MOUNT}]}"
   done
   bold "Configs:"; typeset -p _configs
   bold "Devices:"; typeset -p _devices
 
-  VERSION=images:ubuntu/${OSVERSION}/cloud/${ARCH}
+  VERSION=ubuntu:${OSVERSION}
   lxc init ${VM} "${VERSION}" "${guest}" 
 
   for config in "${!_configs[@]}" ; do
@@ -148,6 +146,7 @@ packages:
 puppet:
   install_type: "aio"
   collection: "puppet6"
+  exec: true
   aio_install_url: "https://raw.githubusercontent.com/puppetlabs/install-puppet/main/install.sh"
   conf_file: '/etc/puppetlabs/puppet/puppet.conf'
   ssl_dir: '/etc/puppetlabs/puppet/ssl'
