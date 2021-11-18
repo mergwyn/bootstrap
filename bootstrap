@@ -16,10 +16,10 @@ do
 	echo)	  args="--role=puppet_master --puppet=master" ;;
 	#juliet)   args="--role=router --vm --mac=00:16:3e:8d:d3:af --environment=development --boot=false" ;;
 	#golf:juliet)   bootstrap="openwrt/lxc_bootstrap" args="--ip=192.168.11.251 --vpns=nord" ;;
-	juliet)   args="--role=vpn_gateway --mac=00:16:3e:ea:ca:4d --environment=development --eth1=lxdbr0" ;;
+	juliet)   args="--role=vpn_gateway --privileged --mac=00:16:3e:ea:ca:4d --eth1=lxdbr0 --environment=development" ;;
 	india)	  args="--role=iptv_server --mounts=media --mac=00:16:3e:93:c6:21 --nfs" ;;
 	papa)	  args="--role=internet_gateway --mac=00:16:3e:fc:2a:87" ;;
-	romeo)	  args="--role=vpn_gateway --mac";;
+	romeo)   args="--role=vpn_gateway --privileged --mac=00:16:3e:e7:e8:df --eth1=lxdbr0" ;;
 	router)	  args="--role=router";;
 	#romeo)	  args="--role=router --privileged --mac=00:16:3e:fb:dc:5e" ;;
 	#romeo)    bootstrap="openwrt/lxc_bootstrap" args="--ip=192.168.11.2 --vpns=privat boot=false" ;;
@@ -27,10 +27,10 @@ do
 	delta)	  args="--role=development --mounts=src,home --privileged --boot=false" ;;
 	victor)	  bootstrap="openwrt/lxc_bootstrap" args="--vpns=privat --ip=192.168.11.252" ;;
 	# testing
-	lima)	  args="--boot=false --nesting=yes --privileged" ;;
-	kilo)	  args="--role=generic_server --environment=development --boot=false" ;;
+	lima)     args="--role=vpn_gateway --mac=00:16:3e:ea:ca:4f --environment=development --eth1=lxdbr0" ;;
+	kilo)	  args="--role=generic_server --nesting=yes --privileged --boot=false" ;; 
 	sierra)	  args="--role=domain_controller --environment=development --boot=false" ;;
-	november) args="--role=minimal_server --boot=false --environment=development" ;;
+	november) args="--role=generic_server --boot=false --environment=zabbix" ;;
 	yankee)   args="--role=minimal_server --boot=false --environment=development" ;;
 	*)	  args="" ;;
 	esac
