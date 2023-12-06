@@ -1,7 +1,12 @@
 #/bin/bash
-. /etc/lsb-release
-_version=$(lsb_release -sc)
 
+set -o niunset
+set -o errexit
+
+. /etc/lsb-release
+_release=$(lsb_release -sc)
+
+_package=puppet7
 ROLE=${2}
 
 WAIT=""
@@ -9,8 +14,8 @@ _puppet=/opt/puppetlabs/bin/puppet
 
 apt update
 apt -y install wget
-wget https://apt.puppetlabs.com/puppet6-release-${_version}.deb
-sudo dpkg -i puppet6-release-${_version}.deb
+wget https://apt.puppetlabs.com/${_package}-release-${_release}.deb
+sudo dpkg -i ${_package}-release-${_release}.deb
 apt -y update
 apt -y install puppet-agent 
 cat <<! >>/etc/puppetlabs/puppet/puppet.conf
